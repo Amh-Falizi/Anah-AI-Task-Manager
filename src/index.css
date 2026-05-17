@@ -1,0 +1,20 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-slate-900: #0f1115;
+  --color-slate-800: #1a1d23;
+  --color-slate-700: #2d3139;
+}
+
+body {
+  @apply bg-[#0f1115] text-slate-300 font-sans antialiased m-0 p-0 h-full w-full;
+}
+
+html {
+  @apply h-full w-full;
+}
+
+#root {
+  @apply h-full w-full flex flex-col;
+}
