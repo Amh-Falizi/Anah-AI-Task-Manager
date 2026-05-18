@@ -18,6 +18,7 @@ export interface Task {
   createdAt: string;
   parentId?: string | null;
   projectId?: string | null;
+  dependencies?: string[];
 }
 
 export interface Project {

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Project } from '../types';
-import { FolderKanban, Plus, X, Trash2, Calendar, LayoutDashboard } from 'lucide-react';
+import { FolderKanban, Plus, X, Trash2, Calendar, LayoutDashboard, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router';
+import WorkloadModal from '../components/WorkloadModal';
 
 export default function Projects() {
   const { token, user: currentUser } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isWorkloadModalOpen, setIsWorkloadModalOpen] = useState(false);
   const navigate = useNavigate();
   
   const fetchProjects = async () => {
@@ -89,6 +92,16 @@ export default function Projects() {
                     {format(new Date(project.createdAt), 'MMM d, yyyy')}
                   </div>
                   <button
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setIsWorkloadModalOpen(true);
+                    }}
+                    className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white font-medium bg-[#0a0c10] hover:bg-[#2d3139] px-2.5 py-1.5 rounded transition-colors border border-[#2d3139]"
+                  >
+                    <Activity size={14} />
+                    <span>Workload</span>
+                  </button>
+                  <button
                     onClick={() => navigate(`/board?projectId=${project.id}`)}
                     className="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-colors"
                   >
@@ -109,6 +122,17 @@ export default function Projects() {
             setShowCreateModal(false);
             fetchProjects();
           }} 
+        />
+      )}
+
+      {isWorkloadModalOpen && selectedProject && (
+        <WorkloadModal
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          onClose={() => {
+            setIsWorkloadModalOpen(false);
+            setSelectedProject(null);
+          }}
         />
       )}
     </div>

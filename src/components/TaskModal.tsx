@@ -32,13 +32,25 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
     assigneeId: task?.assigneeId || '',
     branchName: task?.branchName || '',
     parentId: task?.parentId || parentId || null,
-    projectId: task?.projectId || projectId || null
+    projectId: task?.projectId || projectId || null,
+    dependencies: task?.dependencies || []
   });
   const [generatingBranch, setGeneratingBranch] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.status === 'done') {
+       const pendingDeps = (formData.dependencies || []).filter(depId => {
+         const dep = tasks.find(t => t.id === depId);
+         return dep && dep.status !== 'done';
+       });
+       if (pendingDeps.length > 0) {
+         alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
+         return;
+       }
+    }
+
     onSave({
       ...formData,
       assigneeId: formData.assigneeId === '' ? null : formData.assigneeId
@@ -142,6 +154,24 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                   </div>
                 </div>
 
+                {task.dependencies && task.dependencies.length > 0 && (
+                  <div>
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Dependencies</h3>
+                    <div className="space-y-2">
+                       {task.dependencies.map(depId => {
+                         const depTask = tasks.find(t => t.id === depId);
+                         if (!depTask) return null;
+                         return (
+                            <div key={depId} className="flex items-center space-x-2 bg-[#1a1d23] p-2 rounded border border-[#2d3139]">
+                               <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", depTask.status === 'done' ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>{depTask.status === 'done' ? 'Met' : 'Pending'}</span>
+                               <span className="text-sm text-white">{depTask.title}</span>
+                            </div>
+                         );
+                       })}
+                    </div>
+                  </div>
+                )}
+
                 {subtasks.length > 0 && (
                   <div>
                     <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Subtasks ({subtasks.length})</h3>
@@ -152,6 +182,16 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                             <button 
                               onClick={() => {
                                 if (onUpdateTask) {
+                                  if (st.status !== 'done') {
+                                    const pendingDeps = (st.dependencies || []).filter(depId => {
+                                      const dep = tasks.find(t => t.id === depId);
+                                      return dep && dep.status !== 'done';
+                                    });
+                                    if (pendingDeps.length > 0) {
+                                      alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
+                                      return;
+                                    }
+                                  }
                                   onUpdateTask(st.id, st, { status: st.status === 'done' ? 'todo' : 'done' });
                                 }
                               }}
@@ -286,6 +326,31 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
           </div>
 
           <div className="space-y-1">
+             <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Dependencies (Blocks this task)</label>
+             <div className="max-h-32 overflow-y-auto bg-[#0a0c10] border border-[#2d3139] rounded p-2 space-y-1">
+                {tasks.filter(t => t.id !== task?.id && (!formData.projectId || t.projectId === formData.projectId)).map(t => (
+                  <label key={t.id} className="flex items-center space-x-2 text-xs text-white p-1 hover:bg-[#1a1d23] rounded cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-[#2d3139] bg-transparent"
+                      checked={formData.dependencies?.includes(t.id) || false}
+                      onChange={(e) => {
+                         const deps = formData.dependencies || [];
+                         if (e.target.checked) setFormData(p => ({ ...p, dependencies: [...deps, t.id] }));
+                         else setFormData(p => ({ ...p, dependencies: deps.filter(id => id !== t.id) }));
+                      }}
+                    />
+                    <span>{t.title}</span>
+                    <span className="text-slate-500 text-[10px] uppercase">({t.status.replace('_', ' ')})</span>
+                  </label>
+                ))}
+                {tasks.filter(t => t.id !== task?.id && (!formData.projectId || t.projectId === formData.projectId)).length === 0 && (
+                   <div className="text-xs text-slate-500 italic p-1">No other tasks available to depend on.</div>
+                )}
+             </div>
+          </div>
+
+          <div className="space-y-1">
              <div className="flex justify-between items-center mb-1">
                 <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest flex items-center space-x-2">
                   <GitBranch size={12} /> <span>Git Branch Name</span>
@@ -293,7 +358,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                 <button
                   type="button"
                   onClick={handleGenerateBranch}
-                  disabled={!formData.title || generatingBranch}
+                  disabled={generatingBranch}
                   className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-1 rounded hover:bg-blue-500/20 disabled:opacity-50 flex items-center space-x-1 font-bold tracking-wider uppercase transition-colors"
                 >
                   {generatingBranch ? <Loader2 size={10} className="animate-spin" /> : null}

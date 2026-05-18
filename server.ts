@@ -162,6 +162,11 @@ async function initDb(): Promise<DatabaseWrapper> {
       joinedAt TEXT NOT NULL,
       UNIQUE(teamId, userId)
     );
+    CREATE TABLE IF NOT EXISTS task_dependencies (
+      taskId TEXT NOT NULL,
+      blockedByTaskId TEXT NOT NULL,
+      PRIMARY KEY (taskId, blockedByTaskId)
+    );
   `);
 
   try {
@@ -322,6 +327,12 @@ app.get("/api/users", authenticateToken, async (req: any, res: any) => {
 app.get("/api/tasks", authenticateToken, async (req: any, res: any) => {
   const db = await dbPromise;
   const tasks = await db.all("SELECT * FROM tasks");
+  const deps = await db.all("SELECT * FROM task_dependencies");
+  
+  tasks.forEach((t: any) => {
+    t.dependencies = deps.filter((d: any) => d.taskId === t.id).map((d: any) => d.blockedByTaskId);
+  });
+  
   res.json(tasks);
 });
 
@@ -348,6 +359,12 @@ app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
     [newTask.id, newTask.title, newTask.description, newTask.status, newTask.priority, newTask.deadline, newTask.assigneeId, newTask.creatorId, newTask.branchName, newTask.parentId, newTask.projectId, newTask.createdAt]
   );
   
+  if (req.body.dependencies && Array.isArray(req.body.dependencies)) {
+    for (const depId of req.body.dependencies) {
+      await db.run("INSERT INTO task_dependencies (taskId, blockedByTaskId) VALUES (?, ?)", [newTask.id, depId]);
+    }
+  }
+
   if (newTask.parentId) {
     const parentTask = await db.get("SELECT * FROM tasks WHERE id = ?", newTask.parentId);
     if (parentTask) {
@@ -378,11 +395,37 @@ app.put("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
 
   const updated = { ...task, ...req.body, id: task.id };
 
+  if (updated.status === 'done') {
+    // Check if there are pending dependencies
+    let depIds = [];
+    if (req.body.dependencies !== undefined && Array.isArray(req.body.dependencies)) {
+       depIds = req.body.dependencies;
+    } else {
+       const rows = await db.all("SELECT blockedByTaskId FROM task_dependencies WHERE taskId = ?", updated.id);
+       depIds = rows.map((r: any) => r.blockedByTaskId);
+    }
+    
+    if (depIds.length > 0) {
+      const placeholders = depIds.map(() => '?').join(',');
+      const pendingDeps = await db.all(`SELECT id FROM tasks WHERE id IN (${placeholders}) AND status != 'done'`, depIds);
+      if (pendingDeps.length > 0) {
+        return res.status(400).json({ error: `Cannot mark task as done. ${pendingDeps.length} dependencies are still pending.` });
+      }
+    }
+  }
+
   await db.run(
     "UPDATE tasks SET title=?, description=?, status=?, priority=?, deadline=?, assigneeId=?, branchName=?, parentId=?, projectId=? WHERE id=?",
     [updated.title, updated.description, updated.status, updated.priority, updated.deadline, updated.assigneeId, updated.branchName, updated.parentId, updated.projectId, updated.id]
   );
   
+  if (req.body.dependencies !== undefined && Array.isArray(req.body.dependencies)) {
+    await db.run("DELETE FROM task_dependencies WHERE taskId = ?", updated.id);
+    for (const depId of req.body.dependencies) {
+      await db.run("INSERT INTO task_dependencies (taskId, blockedByTaskId) VALUES (?, ?)", [updated.id, depId]);
+    }
+  }
+
   if (updated.parentId) {
     const parentTask = await db.get("SELECT * FROM tasks WHERE id = ?", updated.parentId);
     if (parentTask) {
@@ -415,6 +458,9 @@ app.delete("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
   // Optional: Also delete subtasks
   await db.run("DELETE FROM tasks WHERE parentId = ?", req.params.id);
   
+  // Delete dependencies
+  await db.run("DELETE FROM task_dependencies WHERE taskId = ? OR blockedByTaskId = ?", [req.params.id, req.params.id]);
+  
   if (task.parentId) {
     const parentTask = await db.get("SELECT * FROM tasks WHERE id = ?", task.parentId);
     if (parentTask) {
@@ -439,16 +485,12 @@ app.delete("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
 // Generate Branch Name
 app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
   try {
-    const db = await dbPromise;
-    const countResult = await db.get("SELECT COUNT(*) as count FROM tasks");
-    const nextNumber = (Number(countResult.count) || 0) + 1;
-    
-    // Generate an ID like KAN-1, KAN-2, etc. If the user wants a short Jira-like branch name
+    const nextNumber = Math.floor(Math.random() * 90000) + 10000;
     const branchName = `KAN-${nextNumber}`;
     
     res.json({ branchName });
   } catch (error: any) {
-    console.error("Branch Generation Error:", error);
+    console.error("Generate branch error:", error);
     res.status(500).json({ error: "Failed to generate branch name." });
   }
 });

@@ -3,10 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { Task, User, Project } from '../types';
 import TaskModal from '../components/TaskModal';
 import WorkloadModal from '../components/WorkloadModal';
-import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity } from 'lucide-react';
+import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity, CheckCircle2, Workflow } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { useSearchParams, Link } from 'react-router';
+import TaskDiagram from '../components/TaskDiagram';
 
 const COLUMNS = [
   { id: 'todo', title: 'To Do' },
@@ -17,6 +18,7 @@ const COLUMNS = [
 
 type SortOption = 'priority' | 'deadline' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
+type ViewMode = 'board' | 'diagram';
 
 const priorityWeight = {
   urgent: 4,
@@ -39,6 +41,7 @@ export default function Board() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [sortBy, setSortBy] = useState<SortOption>('priority');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -255,6 +258,23 @@ export default function Board() {
           )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center bg-[#1a1d23] border border-[#2d3139] rounded overflow-hidden">
+            <button
+               onClick={() => setViewMode('board')}
+               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'board' ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-white")}
+            >
+               <FolderKanban size={14} />
+               <span>Board</span>
+            </button>
+            <div className="w-px h-4 bg-[#2d3139]" />
+            <button
+               onClick={() => setViewMode('diagram')}
+               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'diagram' ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-white")}
+            >
+               <Workflow size={14} />
+               <span>Graph</span>
+            </button>
+          </div>
           {project && (
             <button
               onClick={() => setIsWorkloadModalOpen(true)}
@@ -339,10 +359,11 @@ export default function Board() {
         </div>
       </div>
 
-      <div className="flex-1 flex space-x-6 overflow-x-auto overflow-y-hidden pb-4">
-        {COLUMNS.map(column => {
-          const parentTasks = filteredTasks.filter(t => !t.parentId);
-          const columnTasks = parentTasks.filter(t => t.status === column.id);
+      {viewMode === 'board' ? (
+        <div className="flex-1 flex space-x-6 overflow-x-auto overflow-y-hidden pb-4">
+          {COLUMNS.map(column => {
+            const parentTasks = filteredTasks.filter(t => !t.parentId);
+            const columnTasks = parentTasks.filter(t => t.status === column.id);
           return (
             <div 
               key={column.id} 
@@ -362,6 +383,19 @@ export default function Board() {
                 
                 const task = tasks.find(t => t.id === taskId);
                 if (task && task.status !== column.id) {
+                  // Check dependencies if moving to "done"
+                  if (column.id === 'done') {
+                    const deps = task.dependencies || [];
+                    const pendingDeps = deps.filter(depId => {
+                      const dep = tasks.find(t => t.id === depId);
+                      return dep && dep.status !== 'done';
+                    });
+                    if (pendingDeps.length > 0) {
+                      alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
+                      return;
+                    }
+                  }
+
                   // Optimistic update
                   setTasks(tasks.map(t => t.id === taskId ? { ...t, status: column.id } : t));
                   try {
@@ -464,6 +498,32 @@ export default function Board() {
                       {task.branchName && (
                         <div className="text-[10px] text-slate-500 font-mono italic mb-2 truncate">{task.branchName}</div>
                       )}
+                      
+                      {(() => {
+                        const allDeps = task.dependencies || [];
+                        const pendingDeps = allDeps.filter(depId => {
+                           const dep = filteredTasks.find(t => t.id === depId);
+                           return dep && dep.status !== 'done';
+                        }).length;
+                        
+                        if (allDeps.length === 0) return null;
+                        
+                        return (
+                          <div className={cn("text-[9px] font-bold uppercase tracking-widest inline-flex items-center space-x-1 px-1.5 py-0.5 rounded mb-2", pendingDeps > 0 ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400")}>
+                             {pendingDeps > 0 ? (
+                               <>
+                                 <AlertCircle size={10} />
+                                 <span>{pendingDeps} Blocked</span>
+                               </>
+                             ) : (
+                               <>
+                                 <CheckCircle2 size={10} />
+                                 <span>Unblocked</span>
+                               </>
+                             )}
+                          </div>
+                        );
+                      })()}
 
                       {subtasks.length > 0 && (
                         <div className="mb-2 mt-1">
@@ -534,7 +594,12 @@ export default function Board() {
             </div>
           );
         })}
-      </div>
+        </div>
+      ) : (
+        <div className="flex-1 border border-[#2d3139] rounded overflow-hidden">
+          <TaskDiagram tasks={filteredTasks} />
+        </div>
+      )}
 
       {isModalOpen && (
         <TaskModal

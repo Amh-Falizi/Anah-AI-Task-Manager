@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, User } from '../types';
 import { format, isPast, isToday } from 'date-fns';
-import { CheckCircle2, Clock, AlertCircle, FileText } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, FileText, PieChart as PieChartIcon } from 'lucide-react';
 import { Link } from 'react-router';
 import { cn } from '../lib/utils';
 import TaskModal from '../components/TaskModal';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 export default function Dashboard() {
   const { user, token } = useAuth();
@@ -92,7 +93,30 @@ export default function Dashboard() {
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'done').length;
   const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const reviewTasks = tasks.filter(t => t.status === 'review').length;
+  const todoTasks = tasks.filter(t => t.status === 'todo').length;
   const urgentTasks = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done').length;
+
+  const statusData = [
+    { name: 'To Do', value: todoTasks, color: '#94a3b8' },
+    { name: 'In Progress', value: inProgress, color: '#3b82f6' },
+    { name: 'Review', value: reviewTasks, color: '#eab308' },
+    { name: 'Done', value: completedTasks, color: '#10b981' },
+  ].filter(d => d.value > 0);
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-[#0a0c10] border border-[#2d3139] p-2 rounded text-xs text-white shadow-xl">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].payload.color }} />
+            <span>{payload[0].name}: {payload[0].value}</span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -206,15 +230,50 @@ export default function Dashboard() {
           
           <div className="col-span-4 flex flex-col space-y-6 overflow-hidden">
             <div className="bg-[#1a1d23] border border-[#2d3139] p-4 rounded-lg flex-1 flex flex-col min-h-0">
-               <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Live Activity</h2>
-               <div className="space-y-4 overflow-y-auto">
-                 <div className="flex space-x-3">
-                   <div className="w-1 h-6 bg-green-500 rounded-full"></div>
-                   <div>
-                     <div className="text-[11px] text-white">System Online</div>
-                     <div className="text-[9px] text-slate-500">Just now • core</div>
+               <div className="flex items-center space-x-2 mb-4">
+                 <PieChartIcon size={14} className="text-slate-400" />
+                 <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Task Distribution</h2>
+               </div>
+               
+               <div className="flex-1 min-h-[200px] flex items-center justify-center relative">
+                 {statusData.length > 0 ? (
+                   <ResponsiveContainer width="100%" height="100%">
+                     <PieChart>
+                       <Pie
+                         data={statusData}
+                         cx="50%"
+                         cy="50%"
+                         innerRadius={60}
+                         outerRadius={80}
+                         paddingAngle={2}
+                         dataKey="value"
+                         stroke="none"
+                       >
+                         {statusData.map((entry, index) => (
+                           <Cell key={`cell-${index}`} fill={entry.color} />
+                         ))}
+                       </Pie>
+                       <Tooltip content={<CustomTooltip />} />
+                       <Legend 
+                         verticalAlign="bottom" 
+                         height={36}
+                         iconType="circle"
+                         formatter={(value, entry: any) => (
+                           <span className="text-xs text-slate-400">{value}</span>
+                         )}
+                       />
+                     </PieChart>
+                   </ResponsiveContainer>
+                 ) : (
+                   <div className="text-center text-slate-500 text-sm">No tasks available to visualize.</div>
+                 )}
+                 {statusData.length > 0 && (
+                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-8">
+                     <span className="text-2xl font-bold text-white leading-none">{totalTasks}</span>
+                     <span className="text-[9px] uppercase tracking-widest text-slate-500 mt-1">Total</span>
                    </div>
-                 </div>
+                 )}
+                 
                </div>
                
                <div className="mt-auto pt-4 border-t border-[#2d3139]">
