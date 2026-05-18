@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Board from './pages/Board';
 import Teams from './pages/Teams';
+import Projects from './pages/Projects';
 import Profile from './pages/Profile';
 import CalendarView from './pages/CalendarView';
 import Login from './pages/Login';
@@ -38,6 +39,7 @@ export default function App() {
             </ProtectedRoute>
           }>
             <Route index element={<Dashboard />} />
+            <Route path="projects" element={<Projects />} />
             <Route path="board" element={<Board />} />
             <Route path="calendar" element={<CalendarView />} />
             <Route path="teams" element={<Teams />} />

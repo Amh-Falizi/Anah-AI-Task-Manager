@@ -1,8 +1,10 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { LayoutDashboard, KanbanSquare, LogOut, Users, Calendar } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, LogOut, Users, Calendar, FolderKanban } from 'lucide-react';
 import { cn } from '../lib/utils';
+
+import NotificationsDropdown from './NotificationsDropdown';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -10,6 +12,7 @@ export default function Layout() {
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Projects', href: '/projects', icon: FolderKanban },
     { name: 'Task Board', href: '/board', icon: KanbanSquare },
     { name: 'Calendar', href: '/calendar', icon: Calendar },
     { name: 'Teams', href: '/teams', icon: Users },
@@ -45,8 +48,9 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="mt-auto flex flex-col space-y-6">
-          <div className="flex flex-col items-center gap-4">
+        <div className="mt-auto flex flex-col space-y-6 w-full">
+          <div className="flex flex-col items-center gap-4 w-full">
+             <NotificationsDropdown />
              <button
                onClick={logout}
                className="p-2 text-slate-500 hover:text-red-500 rounded-md transition-colors"

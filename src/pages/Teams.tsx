@@ -38,13 +38,15 @@ export default function Teams() {
           <h1 className="text-xl font-semibold text-white tracking-tight">Teams</h1>
           <p className="text-xs text-slate-400 mt-1">Manage development teams and members</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors text-sm"
-        >
-          <Plus size={16} />
-          <span>New Team</span>
-        </button>
+        {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition-colors text-sm"
+          >
+            <Plus size={16} />
+            <span>New Team</span>
+          </button>
+        )}
       </header>
       
       <div className="flex-1 flex overflow-hidden">
@@ -337,7 +339,7 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
                         <div className="text-sm font-medium text-white flex items-center gap-2">
                           {member.name}
                           {member.id === team.ownerId && (
-                            <Shield size={12} className="text-blue-400" title="Team Owner" />
+                            <Shield size={12} className="text-blue-400" />
                           )}
                         </div>
                         <div className="text-xs text-slate-400">{member.email} • {member.role}</div>

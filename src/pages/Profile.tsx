@@ -83,14 +83,17 @@ export default function Profile() {
             
             <div>
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Role</label>
-              <input
-                type="text"
+              <select
                 value={role}
                 onChange={e => setRole(e.target.value)}
-                className="w-full bg-[#0a0c10] border border-[#2d3139] rounded px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
-                required
-              />
-              <p className="text-[10px] text-slate-500 mt-2">Roles are typically descriptive like "admin", "developer", "designer", etc.</p>
+                disabled={user?.role !== 'admin'}
+                className="w-full bg-[#0a0c10] border border-[#2d3139] rounded px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50"
+              >
+                <option value="developer">Developer</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+              <p className="text-[10px] text-slate-500 mt-2">Only administrators can change account roles.</p>
             </div>
 
             <div>

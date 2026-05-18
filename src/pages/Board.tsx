@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Task, User } from '../types';
+import { Task, User, Project } from '../types';
 import TaskModal from '../components/TaskModal';
-import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X } from 'lucide-react';
+import WorkloadModal from '../components/WorkloadModal';
+import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import { useSearchParams, Link } from 'react-router';
 
 const COLUMNS = [
   { id: 'todo', title: 'To Do' },
@@ -25,9 +27,15 @@ const priorityWeight = {
 
 export default function Board() {
   const { token, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const projectId = searchParams.get('projectId');
+  
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWorkloadModalOpen, setIsWorkloadModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,13 +49,30 @@ export default function Board() {
 
   const fetchData = async () => {
     try {
-      const [tasksRes, usersRes] = await Promise.all([
+      const fetches = [
         fetch('/api/tasks', { headers: { Authorization: `Bearer ${token}` } }),
         fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
-      ]);
-      const tasksData = await tasksRes.json();
-      const usersData = await usersRes.json();
-      setTasks(tasksData);
+      ];
+      
+      if (projectId) {
+        fetches.push(fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } }));
+      }
+      
+      const results = await Promise.all(fetches);
+      const tasksData: Task[] = await results[0].json();
+      const usersData = await results[1].json();
+      
+      if (projectId) {
+        const projectsData: Project[] = await results[2].json();
+        const found = projectsData.find(p => p.id === projectId);
+        setProject(found || null);
+        // Filter tasks by this project
+        setTasks(tasksData.filter(t => t.projectId === projectId));
+      } else {
+        setProject(null);
+        setTasks(tasksData);
+      }
+      
       setUsers(usersData);
     } catch (err) {
       console.error(err);
@@ -58,7 +83,7 @@ export default function Board() {
 
   useEffect(() => {
     fetchData();
-  }, [token]);
+  }, [token, projectId]);
 
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
@@ -214,10 +239,31 @@ export default function Board() {
     <div className="flex-1 flex flex-col p-6 min-h-0 bg-[#0f1115]">
       <div className="flex justify-between items-start lg:items-center mb-6 shrink-0 flex-col lg:flex-row gap-4">
         <div>
-          <h1 className="text-sm font-semibold text-white tracking-tight uppercase">Task Board</h1>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manage team tasks and progress</p>
+          {project ? (
+            <>
+              <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
+                <FolderKanban size={20} className="text-blue-500" />
+                {project.name} <span className="text-sm font-normal text-slate-500">Board</span>
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">{project.description || 'Project Task Board'}</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-sm font-semibold text-white tracking-tight uppercase">Task Board</h1>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manage all tasks</p>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {project && (
+            <button
+              onClick={() => setIsWorkloadModalOpen(true)}
+              className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] hover:border-blue-500/50 text-slate-300 hover:text-white px-3 py-1.5 rounded transition-all text-sm font-medium"
+            >
+              <Activity size={14} className="text-blue-500" />
+              <span>Team Workload</span>
+            </button>
+          )}
           <div className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] rounded px-3 py-1.5 text-[10px]">
             <Search size={14} className="text-slate-500 shrink-0" />
             <input 
@@ -496,6 +542,7 @@ export default function Board() {
           users={users}
           tasks={tasks}
           parentId={selectedParentId}
+          projectId={projectId}
           onClose={() => setIsModalOpen(false)}
           onSave={handleSaveTask}
           onUpdateTask={handleUpdateTask}
@@ -556,6 +603,13 @@ export default function Board() {
             <X size={16} />
           </button>
         </div>
+      )}
+      {isWorkloadModalOpen && project && (
+        <WorkloadModal
+          projectId={project.id}
+          projectName={project.name}
+          onClose={() => setIsWorkloadModalOpen(false)}
+        />
       )}
     </div>
   );

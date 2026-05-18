@@ -15,10 +15,11 @@ interface TaskModalProps {
   onUpdateTask?: (taskId: string, currentTask: Task, updates: Partial<Task>) => void;
   onDeleteTask?: (taskId: string) => void;
   parentId?: string | null;
+  projectId?: string | null;
 }
 
-export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, parentId }: TaskModalProps) {
-  const { token } = useAuth();
+export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, parentId, projectId }: TaskModalProps) {
+  const { token, user } = useAuth();
   const isEdit = !!task;
   const [isViewMode, setIsViewMode] = useState(isEdit);
   
@@ -30,7 +31,8 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
     deadline: task?.deadline ? task.deadline.split('T')[0] : new Date().toISOString().split('T')[0],
     assigneeId: task?.assigneeId || '',
     branchName: task?.branchName || '',
-    parentId: task?.parentId || parentId || null
+    parentId: task?.parentId || parentId || null,
+    projectId: task?.projectId || projectId || null
   });
   const [generatingBranch, setGeneratingBranch] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
@@ -98,7 +100,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
               </div>
             </div>
             <div className="flex items-center space-x-2 shrink-0">
-              {onDeleteTask && (
+              {onDeleteTask && (user?.role === 'admin' || user?.role === 'manager' || user?.id === task.creatorId) && (
                 <button
                   onClick={() => {
                     onDeleteTask(task.id);
@@ -111,13 +113,15 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                   <span>Delete</span>
                 </button>
               )}
-              <button 
-                onClick={() => setIsViewMode(false)} 
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded border border-blue-500/20 transition-colors uppercase text-[10px] font-bold tracking-widest"
-              >
-                <Edit2 size={12} />
-                <span>Edit</span>
-              </button>
+              {(user?.role === 'admin' || user?.role === 'manager' || user?.id === task.creatorId || user?.id === task.assigneeId) && (
+                <button 
+                  onClick={() => setIsViewMode(false)} 
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded border border-blue-500/20 transition-colors uppercase text-[10px] font-bold tracking-widest"
+                >
+                  <Edit2 size={12} />
+                  <span>Edit</span>
+                </button>
+              )}
               <button onClick={onClose} className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-colors">
                 <X size={20} />
               </button>

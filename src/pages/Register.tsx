@@ -7,7 +7,7 @@ export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('dev_front');
+  const [role, setRole] = useState('developer');
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -84,9 +84,9 @@ export default function Register() {
               value={role}
               onChange={(e) => setRole(e.target.value)}
             >
-              <option value="dev_front">Frontend Developer</option>
-              <option value="dev_back">Backend Developer</option>
-              <option value="admin">Admin / Manager</option>
+              <option value="developer">Developer</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Admin</option>
             </select>
           </div>
 

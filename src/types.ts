@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "dev_front" | "dev_back";
+  role: "admin" | "manager" | "developer";
 }
 
 export interface Task {
@@ -17,6 +17,15 @@ export interface Task {
   branchName: string | null;
   createdAt: string;
   parentId?: string | null;
+  projectId?: string | null;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  ownerId: string;
+  createdAt: string;
 }
 
 export interface Team {

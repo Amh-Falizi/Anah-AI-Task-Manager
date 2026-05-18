@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { GoogleGenAI } from "@google/genai";
+import { Pool } from "pg";
 import { open } from "sqlite";
 import sqlite3 from "sqlite3";
 
@@ -16,17 +17,107 @@ const SECRET_KEY = process.env.SECRET_KEY || "super_secret_dev_key";
 app.use(express.json());
 
 // Initialize Database Storage
-const DB_FILE = path.join(process.cwd(), "database.sqlite");
+const DATABASE_URL = process.env.DATABASE_URL || "postgres://user:password@localhost:5432/dbname";
 
-let dbPromise: Promise<any>;
+interface DatabaseWrapper {
+  exec(sql: string): Promise<void>;
+  run(sql: string, params?: any | any[]): Promise<void>;
+  get(sql: string, params?: any | any[]): Promise<any>;
+  all(sql: string, params?: any | any[]): Promise<any[]>;
+}
 
-async function initDb() {
-  const db = await open({
-    filename: DB_FILE,
-    driver: sqlite3.Database
-  });
+class PgWrapper implements DatabaseWrapper {
+  private pool: Pool;
+  constructor(connectionString: string) {
+    this.pool = new Pool({ connectionString });
+  }
+  async testConnection() {
+    const client = await this.pool.connect();
+    client.release();
+  }
+  private convertSql(sql: string) {
+    let index = 1;
+    return sql.replace(/\?/g, () => `$${index++}`);
+  }
+  private mapParams(params: any[]) {
+      return params.map(p => typeof p === 'undefined' ? null : p);
+  }
+  async exec(sql: string) {
+    await this.pool.query(sql);
+  }
+  async run(sql: string, params: any[] = []) {
+    if (!Array.isArray(params)) params = [params];
+    const converted = this.convertSql(sql);
+    await this.pool.query(converted, this.mapParams(params));
+  }
+  async get(sql: string, params: any | any[] = []) {
+    if (!Array.isArray(params)) params = [params];
+    const converted = this.convertSql(sql);
+    const result = await this.pool.query(converted, this.mapParams(params));
+    return result.rows[0];
+  }
+  async all(sql: string, params: any[] = []) {
+    if (!Array.isArray(params)) params = [params];
+    const converted = this.convertSql(sql);
+    const result = await this.pool.query(converted, this.mapParams(params));
+    return result.rows;
+  }
+}
 
-  await db.exec(`
+class SqliteWrapper implements DatabaseWrapper {
+  private db: any;
+  constructor(db: any) {
+    this.db = db;
+  }
+  async exec(sql: string) {
+    await this.db.exec(sql);
+  }
+  async run(sql: string, params: any[] = []) {
+    if (!Array.isArray(params)) params = [params];
+    await this.db.run(sql, ...params);
+  }
+  async get(sql: string, params: any | any[] = []) {
+    if (!Array.isArray(params)) params = [params];
+    return await this.db.get(sql, ...params);
+  }
+  async all(sql: string, params: any[] = []) {
+    if (!Array.isArray(params)) params = [params];
+    return await this.db.all(sql, ...params);
+  }
+}
+
+let dbPromise: Promise<DatabaseWrapper>;
+
+async function initDb(): Promise<DatabaseWrapper> {
+  let db: DatabaseWrapper;
+  const isDefaultPg = DATABASE_URL === "postgres://user:password@localhost:5432/dbname" || DATABASE_URL.includes("localhost");
+  
+  let usePg = false;
+  if (!isDefaultPg) {
+    try {
+      const pgTest = new PgWrapper(DATABASE_URL);
+      await pgTest.testConnection();
+      db = pgTest;
+      usePg = true;
+      console.log("Connected to PostgreSQL successfully");
+    } catch (e: any) {
+      console.warn("PostgreSQL connection failed, falling back to SQLite:", e.message);
+    }
+  } else {
+    console.log("Using default/invalid DATABASE_URL, falling back to SQLite");
+  }
+
+  if (!usePg) {
+    const DB_FILE = path.join(process.cwd(), "database.sqlite");
+    const sqliteDb = await open({
+      filename: DB_FILE,
+      driver: sqlite3.Database
+    });
+    db = new SqliteWrapper(sqliteDb);
+  }
+
+  try {
+    await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -56,6 +147,14 @@ async function initDb() {
       createdAt TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      ownerId TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS team_members (
       id TEXT PRIMARY KEY,
       teamId TEXT NOT NULL,
@@ -65,13 +164,19 @@ async function initDb() {
     );
   `);
 
+  try {
+    await db.exec("ALTER TABLE tasks ADD COLUMN projectId TEXT");
+  } catch (e) {
+    // Column might already exist
+  }
+
   // Migrate existing data from db.json if present
   const JSON_DB_FILE = path.join(process.cwd(), "db.json");
   if (fs.existsSync(JSON_DB_FILE)) {
     try {
       const data = JSON.parse(fs.readFileSync(JSON_DB_FILE, "utf-8"));
       const userCount = await db.get("SELECT COUNT(*) as count FROM users");
-      if (userCount.count === 0 && data.users && data.users.length > 0) {
+      if (Number(userCount.count) === 0 && data.users && data.users.length > 0) {
         for (const u of data.users) {
           await db.run(
             "INSERT INTO users (id, name, email, passwordHash, role) VALUES (?, ?, ?, ?, ?)",
@@ -80,8 +185,8 @@ async function initDb() {
         }
         for (const t of data.tasks) {
           await db.run(
-            "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [t.id, t.title, t.description, t.status, t.priority, t.deadline, t.assigneeId, t.creatorId, t.branchName, t.parentId || null, t.createdAt]
+            "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, projectId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [t.id, t.title, t.description, t.status, t.priority, t.deadline, t.assigneeId, t.creatorId, t.branchName, t.parentId || null, null, t.createdAt]
           );
         }
         console.log("Migrated data from db.json to database.sqlite");
@@ -91,6 +196,9 @@ async function initDb() {
       console.error("Migration error", e);
     }
   }
+} catch (error) {
+  console.warn("DB Connection/Init Error. The app will run, but DB features will fail until DATABASE_URL is correct:", error);
+}
 
   return db;
 }
@@ -102,7 +210,7 @@ interface User {
   name: string;
   email: string;
   passwordHash: string;
-  role: "admin" | "dev_front" | "dev_back";
+  role: "admin" | "manager" | "developer";
 }
 
 interface Task {
@@ -116,6 +224,7 @@ interface Task {
   creatorId: string;
   branchName: string | null;
   parentId?: string | null;
+  projectId?: string | null;
   createdAt: string;
 }
 
@@ -148,7 +257,7 @@ app.post("/api/auth/register", async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(password, salt);
   const id = uuidv4();
-  const assignedRole = role || "dev_front";
+  const assignedRole = role || "developer";
 
   await db.run(
     "INSERT INTO users (id, name, email, passwordHash, role) VALUES (?, ?, ?, ?, ?)",
@@ -184,12 +293,19 @@ app.get("/api/auth/me", authenticateToken, async (req: any, res: any) => {
 app.put("/api/users/me", authenticateToken, async (req: any, res: any) => {
   const db = await dbPromise;
   const { name, role } = req.body;
-  if (!name || !role) {
-    return res.status(400).json({ error: "Name and role are required." });
+  if (!name) {
+    return res.status(400).json({ error: "Name is required." });
   }
+  
+  if (role && role !== req.user.role && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Only admins can change roles." });
+  }
+
+  const newRole = (req.user.role === "admin" && role) ? role : req.user.role;
+
   await db.run(
     "UPDATE users SET name = ?, role = ? WHERE id = ?",
-    [name, role, req.user.id]
+    [name, newRole, req.user.id]
   );
   const updatedUser = await db.get("SELECT id, name, email, role FROM users WHERE id = ?", req.user.id);
   res.json(updatedUser);
@@ -223,12 +339,13 @@ app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
     creatorId: req.user.id,
     branchName: req.body.branchName || null,
     parentId: req.body.parentId || null,
+    projectId: req.body.projectId || null,
     createdAt: new Date().toISOString(),
   };
 
   await db.run(
-    "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [newTask.id, newTask.title, newTask.description, newTask.status, newTask.priority, newTask.deadline, newTask.assigneeId, newTask.creatorId, newTask.branchName, newTask.parentId, newTask.createdAt]
+    "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, projectId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [newTask.id, newTask.title, newTask.description, newTask.status, newTask.priority, newTask.deadline, newTask.assigneeId, newTask.creatorId, newTask.branchName, newTask.parentId, newTask.projectId, newTask.createdAt]
   );
   
   if (newTask.parentId) {
@@ -255,15 +372,15 @@ app.put("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
   const task = await db.get("SELECT * FROM tasks WHERE id = ?", req.params.id);
   if (!task) return res.sendStatus(404);
 
-  if (req.user.role !== "admin" && task.creatorId !== req.user.id && task.assigneeId !== req.user.id) {
-    return res.status(403).json({ error: "Only admins, creators, or assignees can edit tasks." });
+  if (req.user.role !== "admin" && req.user.role !== "manager" && task.creatorId !== req.user.id && task.assigneeId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins, managers, creators, or assignees can edit tasks." });
   }
 
   const updated = { ...task, ...req.body, id: task.id };
 
   await db.run(
-    "UPDATE tasks SET title=?, description=?, status=?, priority=?, deadline=?, assigneeId=?, branchName=?, parentId=? WHERE id=?",
-    [updated.title, updated.description, updated.status, updated.priority, updated.deadline, updated.assigneeId, updated.branchName, updated.parentId, updated.id]
+    "UPDATE tasks SET title=?, description=?, status=?, priority=?, deadline=?, assigneeId=?, branchName=?, parentId=?, projectId=? WHERE id=?",
+    [updated.title, updated.description, updated.status, updated.priority, updated.deadline, updated.assigneeId, updated.branchName, updated.parentId, updated.projectId, updated.id]
   );
   
   if (updated.parentId) {
@@ -290,8 +407,8 @@ app.delete("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
   const task = await db.get("SELECT * FROM tasks WHERE id = ?", req.params.id);
   if (!task) return res.sendStatus(404);
 
-  if (req.user.role !== "admin" && task.creatorId !== req.user.id) {
-    return res.status(403).json({ error: "Only admins or the task creator can delete tasks." });
+  if (req.user.role !== "admin" && req.user.role !== "manager" && task.creatorId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins, managers or the task creator can delete tasks." });
   }
 
   await db.run("DELETE FROM tasks WHERE id = ?", req.params.id);
@@ -324,7 +441,7 @@ app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
   try {
     const db = await dbPromise;
     const countResult = await db.get("SELECT COUNT(*) as count FROM tasks");
-    const nextNumber = (countResult.count || 0) + 1;
+    const nextNumber = (Number(countResult.count) || 0) + 1;
     
     // Generate an ID like KAN-1, KAN-2, etc. If the user wants a short Jira-like branch name
     const branchName = `KAN-${nextNumber}`;
@@ -337,6 +454,100 @@ app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
 });
 
 
+// Projects APIs
+app.get("/api/projects/:id/workload", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const project = await db.get("SELECT * FROM projects WHERE id = ?", req.params.id);
+  if (!project) return res.sendStatus(404);
+
+  const tasks = await db.all("SELECT id, status, assigneeId FROM tasks WHERE projectId = ?", req.params.id);
+  const users = await db.all("SELECT id, name, email FROM users");
+
+  const workload: Record<string, any> = {};
+  
+  tasks.forEach((task: any) => {
+    if (!task.assigneeId) return; // Skip unassigned for now, or track separately if needed?
+    if (!workload[task.assigneeId]) {
+      const user = users.find(u => u.id === task.assigneeId);
+      workload[task.assigneeId] = {
+        user: user || { id: task.assigneeId, name: 'Unknown User', email: '' },
+        total: 0,
+        done: 0,
+        in_progress: 0,
+        todo: 0,
+        review: 0
+      };
+    }
+    workload[task.assigneeId].total++;
+    // Handle standard statuses, fallback to todo if something else
+    if (["todo", "in_progress", "review", "done"].includes(task.status)) {
+        workload[task.assigneeId][task.status]++;
+    }
+  });
+
+  const result = Object.values(workload).map((w: any) => ({
+    ...w,
+    completionPercentage: w.total > 0 ? Math.round((w.done / w.total) * 100) : 0
+  })).sort((a: any, b: any) => b.total - a.total);
+
+  res.json(result);
+});
+
+app.get("/api/projects", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const projects = await db.all("SELECT * FROM projects");
+  res.json(projects);
+});
+
+app.post("/api/projects", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+
+  if (req.user.role !== "admin" && req.user.role !== "manager") {
+    return res.status(403).json({ error: "Only admins and managers can create projects." });
+  }
+
+  const { name, description } = req.body;
+  const projectId = uuidv4();
+  await db.run(
+    "INSERT INTO projects (id, name, description, ownerId, createdAt) VALUES (?, ?, ?, ?, ?)",
+    [projectId, name, description || "", req.user.id, new Date().toISOString()]
+  );
+  const newProject = await db.get("SELECT * FROM projects WHERE id = ?", projectId);
+  res.json(newProject);
+});
+
+app.put("/api/projects/:id", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const project = await db.get("SELECT * FROM projects WHERE id = ?", req.params.id);
+  if (!project) return res.sendStatus(404);
+
+  if (req.user.role !== "admin" && req.user.role !== "manager" && project.ownerId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins, managers or the owner can edit projects." });
+  }
+
+  const { name, description } = req.body;
+  await db.run(
+    "UPDATE projects SET name = ?, description = ? WHERE id = ?",
+    [name, description, req.params.id]
+  );
+  
+  const updatedProject = await db.get("SELECT * FROM projects WHERE id = ?", req.params.id);
+  res.json(updatedProject);
+});
+
+app.delete("/api/projects/:id", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const project = await db.get("SELECT * FROM projects WHERE id = ?", req.params.id);
+  if (!project) return res.sendStatus(404);
+
+  if (req.user.role !== "admin" && req.user.role !== "manager" && project.ownerId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins, managers or the owner can delete projects." });
+  }
+
+  await db.run("DELETE FROM projects WHERE id = ?", req.params.id);
+  res.json({ success: true });
+});
+
 // Teams APIs
 app.get("/api/teams", authenticateToken, async (req: any, res: any) => {
   const db = await dbPromise;
@@ -346,6 +557,11 @@ app.get("/api/teams", authenticateToken, async (req: any, res: any) => {
 
 app.post("/api/teams", authenticateToken, async (req: any, res: any) => {
   const db = await dbPromise;
+
+  if (req.user.role !== "admin" && req.user.role !== "manager") {
+    return res.status(403).json({ error: "Only admins and managers can create teams." });
+  }
+
   const { name, description } = req.body;
   const teamId = uuidv4();
   await db.run(
