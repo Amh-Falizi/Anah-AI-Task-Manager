@@ -167,6 +167,20 @@ async function initDb(): Promise<DatabaseWrapper> {
       blockedByTaskId TEXT NOT NULL,
       PRIMARY KEY (taskId, blockedByTaskId)
     );
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id TEXT PRIMARY KEY,
+      taskId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      content TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS task_activities (
+      id TEXT PRIMARY KEY,
+      taskId TEXT NOT NULL,
+      userId TEXT NOT NULL,
+      action TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
   `);
 
   try {
@@ -336,6 +350,38 @@ app.get("/api/tasks", authenticateToken, async (req: any, res: any) => {
   res.json(tasks);
 });
 
+// Logs activity
+async function logActivity(db: any, taskId: string, userId: string, action: string) {
+  const activityId = uuidv4();
+  await db.run(
+    "INSERT INTO task_activities (id, taskId, userId, action, createdAt) VALUES (?, ?, ?, ?, ?)",
+    [activityId, taskId, userId, action, new Date().toISOString()]
+  );
+}
+
+// Get Task Details (Comments and Activities)
+app.get("/api/tasks/:id/details", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const taskId = req.params.id;
+  const comments = await db.all("SELECT * FROM task_comments WHERE taskId = ? ORDER BY createdAt ASC", taskId);
+  const activities = await db.all("SELECT * FROM task_activities WHERE taskId = ? ORDER BY createdAt DESC", taskId);
+  res.json({ comments, activities });
+});
+
+// Create Comment
+app.post("/api/tasks/:id/comments", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const taskId = req.params.id;
+  const commentId = uuidv4();
+  await db.run(
+    "INSERT INTO task_comments (id, taskId, userId, content, createdAt) VALUES (?, ?, ?, ?, ?)",
+    [commentId, taskId, req.user.id, req.body.content, new Date().toISOString()]
+  );
+  await logActivity(db, taskId, req.user.id, `commented: ${req.body.content.substring(0, 50)}...`);
+  const comment = await db.get("SELECT * FROM task_comments WHERE id = ?", commentId);
+  res.json(comment);
+});
+
 // Create Task
 app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
   const db = await dbPromise;
@@ -379,6 +425,8 @@ app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
        }
     }
   }
+
+  await logActivity(db, newTask.id, req.user.id, "created task");
 
   res.json(newTask);
 });
@@ -441,6 +489,12 @@ app.put("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
     }
   }
 
+  let actionStr = "updated task";
+  if (task.status !== updated.status) {
+    actionStr = `changed status from ${task.status} to ${updated.status}`;
+  }
+  await logActivity(db, updated.id, req.user.id, actionStr);
+
   res.json(updated);
 });
 
@@ -485,8 +539,10 @@ app.delete("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
 // Generate Branch Name
 app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
   try {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const randomLetters = Array.from({length: 3}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     const nextNumber = Math.floor(Math.random() * 90000) + 10000;
-    const branchName = `KAN-${nextNumber}`;
+    const branchName = `${randomLetters}-${nextNumber}`;
     
     res.json({ branchName });
   } catch (error: any) {

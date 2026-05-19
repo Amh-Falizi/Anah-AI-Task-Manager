@@ -37,6 +37,51 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
   });
   const [generatingBranch, setGeneratingBranch] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  
+  const [activeTab, setActiveTab] = useState<'details' | 'comments' | 'activity'>('details');
+  const [comments, setComments] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    if (isViewMode && task) {
+      setLoadingDetails(true);
+      fetch(`/api/tasks/${task.id}/details`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setComments(data.comments || []);
+        setActivities(data.activities || []);
+      })
+      .catch(err => console.error("Error fetching details", err))
+      .finally(() => setLoadingDetails(false));
+    }
+  }, [isViewMode, task, token]);
+
+  const handleCreateComment = async () => {
+    if (!newComment.trim() || !task) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: newComment.trim() })
+      });
+      const comment = await res.json();
+      setComments([...comments, comment]);
+      setNewComment('');
+      // Optionally reload activities since comment adds one
+      fetch(`/api/tasks/${task.id}/details`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => setActivities(data.activities || []));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,74 +187,171 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
           
           <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-[#0a0c10]">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="col-span-2 space-y-6">
-                <div>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Description</h3>
-                  <div className="prose prose-invert prose-sm max-w-none text-slate-300">
-                    {task.description ? (
-                      <Markdown>{task.description}</Markdown>
-                    ) : (
-                      <span className="italic text-slate-600">No description provided.</span>
-                    )}
-                  </div>
+              <div className="col-span-2 flex flex-col h-full min-h-0">
+                <div className="flex border-b border-[#2d3139] mb-4 space-x-1 shrink-0">
+                  <button 
+                    onClick={() => setActiveTab('details')}
+                    className={cn("px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-colors", activeTab === 'details' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white")}
+                  >
+                    Details
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('comments')}
+                    className={cn("px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-colors", activeTab === 'comments' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white")}
+                  >
+                    Comments {comments.length > 0 && `(${comments.length})`}
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('activity')}
+                    className={cn("px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-colors", activeTab === 'activity' ? "border-blue-500 text-blue-400" : "border-transparent text-slate-500 hover:text-white")}
+                  >
+                    Activity {activities.length > 0 && `(${activities.length})`}
+                  </button>
                 </div>
 
-                {task.dependencies && task.dependencies.length > 0 && (
-                  <div>
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Dependencies</h3>
-                    <div className="space-y-2">
-                       {task.dependencies.map(depId => {
-                         const depTask = tasks.find(t => t.id === depId);
-                         if (!depTask) return null;
-                         return (
-                            <div key={depId} className="flex items-center space-x-2 bg-[#1a1d23] p-2 rounded border border-[#2d3139]">
-                               <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", depTask.status === 'done' ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>{depTask.status === 'done' ? 'Met' : 'Pending'}</span>
-                               <span className="text-sm text-white">{depTask.title}</span>
-                            </div>
-                         );
-                       })}
-                    </div>
-                  </div>
-                )}
-
-                {subtasks.length > 0 && (
-                  <div>
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Subtasks ({subtasks.length})</h3>
-                    <div className="space-y-2">
-                      {subtasks.map(st => (
-                        <div key={st.id} className="flex items-center justify-between bg-[#1a1d23] p-3 rounded border border-[#2d3139]">
-                          <div className="flex items-center space-x-3">
-                            <button 
-                              onClick={() => {
-                                if (onUpdateTask) {
-                                  if (st.status !== 'done') {
-                                    const pendingDeps = (st.dependencies || []).filter(depId => {
-                                      const dep = tasks.find(t => t.id === depId);
-                                      return dep && dep.status !== 'done';
-                                    });
-                                    if (pendingDeps.length > 0) {
-                                      alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
-                                      return;
-                                    }
-                                  }
-                                  onUpdateTask(st.id, st, { status: st.status === 'done' ? 'todo' : 'done' });
-                                }
-                              }}
-                              className="focus:outline-none shrink-0 cursor-pointer"
-                              title={st.status === 'done' ? 'Mark as to do' : 'Mark as done'}
-                            >
-                              <CheckCircle2 size={16} className={cn("transition-colors hover:text-green-400", st.status === 'done' ? 'text-green-500' : 'text-slate-600')} />
-                            </button>
-                            <span className={cn("text-sm text-white", st.status === 'done' && 'line-through text-slate-500')}>{st.title}</span>
-                          </div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0a0c10] px-2 py-1 rounded">
-                            {st.status.replace('_', ' ')}
-                          </span>
+                <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                  {activeTab === 'details' && (
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Description</h3>
+                        <div className="prose prose-invert prose-sm max-w-none text-slate-300">
+                          {task.description ? (
+                            <Markdown>{task.description}</Markdown>
+                          ) : (
+                            <span className="italic text-slate-600">No description provided.</span>
+                          )}
                         </div>
-                      ))}
+                      </div>
+
+                      {task.dependencies && task.dependencies.length > 0 && (
+                        <div>
+                          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Dependencies</h3>
+                          <div className="space-y-2">
+                             {task.dependencies.map(depId => {
+                               const depTask = tasks.find(t => t.id === depId);
+                               if (!depTask) return null;
+                               return (
+                                  <div key={depId} className="flex items-center space-x-2 bg-[#1a1d23] p-2 rounded border border-[#2d3139]">
+                                     <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider", depTask.status === 'done' ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>{depTask.status === 'done' ? 'Met' : 'Pending'}</span>
+                                     <span className="text-sm text-white">{depTask.title}</span>
+                                  </div>
+                               );
+                             })}
+                          </div>
+                        </div>
+                      )}
+
+                      {subtasks.length > 0 && (
+                        <div>
+                          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Subtasks ({subtasks.length})</h3>
+                          <div className="space-y-2">
+                            {subtasks.map(st => (
+                              <div key={st.id} className="flex items-center justify-between bg-[#1a1d23] p-3 rounded border border-[#2d3139]">
+                                <div className="flex items-center space-x-3">
+                                  <button 
+                                    onClick={() => {
+                                      if (onUpdateTask) {
+                                        if (st.status !== 'done') {
+                                          const pendingDeps = (st.dependencies || []).filter(depId => {
+                                            const dep = tasks.find(t => t.id === depId);
+                                            return dep && dep.status !== 'done';
+                                          });
+                                          if (pendingDeps.length > 0) {
+                                            alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
+                                            return;
+                                          }
+                                        }
+                                        onUpdateTask(st.id, st, { status: st.status === 'done' ? 'todo' : 'done' });
+                                      }
+                                    }}
+                                    className="focus:outline-none shrink-0 cursor-pointer"
+                                    title={st.status === 'done' ? 'Mark as to do' : 'Mark as done'}
+                                  >
+                                    <CheckCircle2 size={16} className={cn("transition-colors hover:text-green-400", st.status === 'done' ? 'text-green-500' : 'text-slate-600')} />
+                                  </button>
+                                  <span className={cn("text-sm text-white", st.status === 'done' && 'line-through text-slate-500')}>{st.title}</span>
+                                </div>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0a0c10] px-2 py-1 rounded">
+                                  {st.status.replace('_', ' ')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {activeTab === 'comments' && (
+                    <div className="space-y-4 flex flex-col h-full bg-[#1a1d23] rounded p-4 border border-[#2d3139]">
+                       <div className="flex-1 overflow-y-auto space-y-4 min-h-[200px]">
+                         {loadingDetails ? (
+                           <div className="flex items-center justify-center p-4"><Loader2 className="animate-spin text-slate-500" size={20} /></div>
+                         ) : comments.length > 0 ? (
+                            comments.map(c => {
+                              const author = users.find(u => u.id === c.userId);
+                              return (
+                                <div key={c.id} className="bg-[#0a0c10] border border-[#2d3139] p-3 rounded">
+                                  <div className="flex items-center justify-between mb-2">
+                                     <span className="text-xs font-bold text-white">{author ? author.name : 'Unknown'}</span>
+                                     <span className="text-[9px] text-slate-500 font-mono">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
+                                  </div>
+                                  <p className="text-sm text-slate-300 whitespace-pre-wrap">{c.content}</p>
+                                </div>
+                              )
+                            })
+                         ) : (
+                           <div className="text-sm text-slate-500 italic p-4 text-center">No comments yet.</div>
+                         )}
+                       </div>
+                       <div className="mt-auto shrink-0 flex space-x-2 pt-2">
+                         <textarea 
+                           className="flex-1 bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-2 text-sm text-white resize-none h-16 focus:outline-none focus:border-blue-500"
+                           placeholder="Write a comment..."
+                           value={newComment}
+                           onChange={e => setNewComment(e.target.value)}
+                         />
+                         <button 
+                           onClick={handleCreateComment}
+                           disabled={!newComment.trim()}
+                           className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] uppercase tracking-widest rounded px-4 disabled:opacity-50 transition-colors"
+                         >
+                           Post
+                         </button>
+                       </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'activity' && (
+                    <div className="space-y-4 bg-[#1a1d23] rounded p-4 border border-[#2d3139] min-h-[200px]">
+                      {loadingDetails ? (
+                        <div className="flex items-center justify-center p-4"><Loader2 className="animate-spin text-slate-500" size={20} /></div>
+                      ) : activities.length > 0 ? (
+                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-700 before:to-transparent">
+                          {activities.map(a => {
+                            const author = users.find(u => u.id === a.userId);
+                            return (
+                              <div key={a.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                 <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-200 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow">
+                                    <Clock size={14} className="text-slate-500" />
+                                 </div>
+                                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded border border-slate-700 bg-slate-800 shadow">
+                                   <div className="flex items-center justify-between mb-1">
+                                      <div className="font-bold text-slate-200 text-xs">{author ? author.name : 'Unknown User'}</div>
+                                      <time className="font-mono text-[9px] text-slate-400">{format(new Date(a.createdAt), 'MMM d, h:mm a')}</time>
+                                   </div>
+                                   <div className="text-xs text-slate-300">{a.action}</div>
+                                 </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                         <div className="text-sm text-slate-500 italic p-4 text-center">No activity recorded.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="space-y-6">

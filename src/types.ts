@@ -41,3 +41,21 @@ export interface TeamMember extends User {
   teamId: string;
   joinedAt: string;
 }
+
+export interface TaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+  user?: User; // added on client side
+}
+
+export interface TaskActivity {
+  id: string;
+  taskId: string;
+  userId: string;
+  action: string; // e.g. 'created', 'status_changed', 'commented'
+  createdAt: string;
+  user?: User; // added on client side
+}
