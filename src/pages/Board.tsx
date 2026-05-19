@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Task, User, Project } from '../types';
 import TaskModal from '../components/TaskModal';
 import WorkloadModal from '../components/WorkloadModal';
-import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity, CheckCircle2, Workflow } from 'lucide-react';
+import ProjectActivityModal from '../components/ProjectActivityModal';
+import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity, CheckCircle2, Workflow, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { useSearchParams, Link } from 'react-router';
@@ -16,7 +17,7 @@ const COLUMNS = [
   { id: 'done', title: 'Done' }
 ] as const;
 
-type SortOption = 'priority' | 'deadline' | 'createdAt';
+type SortOption = 'custom' | 'priority' | 'deadline' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 type ViewMode = 'board' | 'diagram';
 
@@ -38,12 +39,13 @@ export default function Board() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isWorkloadModalOpen, setIsWorkloadModalOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('board');
-  const [sortBy, setSortBy] = useState<SortOption>('priority');
-  const [sortDir, setSortDir] = useState<SortDirection>('desc');
+  const [sortBy, setSortBy] = useState<SortOption>('custom');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterAssignee, setFilterAssignee] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -92,7 +94,9 @@ export default function Board() {
     return [...tasks].sort((a, b) => {
       let comparison = 0;
       
-      if (sortBy === 'priority') {
+      if (sortBy === 'custom') {
+        comparison = (a.orderIndex || 0) - (b.orderIndex || 0);
+      } else if (sortBy === 'priority') {
         comparison = priorityWeight[a.priority] - priorityWeight[b.priority];
       } else if (sortBy === 'deadline') {
         comparison = new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
@@ -147,8 +151,85 @@ export default function Board() {
     setIsModalOpen(true);
   };
 
-  const handleCreateSubtask = (e: React.MouseEvent, parentId: string) => {
-    e.stopPropagation();
+  const handleDropTask = async (taskId: string, targetStatus: string, hoverTaskId?: string, dropPosition?: 'before' | 'after') => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (targetStatus === 'done' && task.status !== 'done') {
+      const deps = task.dependencies || [];
+      const pendingDeps = deps.filter(depId => {
+        const dep = tasks.find(t => t.id === depId);
+        return dep && dep.status !== 'done';
+      });
+      if (pendingDeps.length > 0) {
+        alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
+        return;
+      }
+    }
+
+    let newOrderIndex = task.orderIndex;
+
+    const columnTasks = sortedTasks.filter(t => t.status === targetStatus && t.parentId === task.parentId);
+    
+    // Explicit reordering - exclude the dragged task from column Tasks to avoid index shifting bugs
+    const columnTasksWithoutDragged = columnTasks.filter(t => t.id !== taskId);
+
+    if (hoverTaskId) {
+      if (sortBy !== 'custom') {
+        setSortBy('custom');
+        setSortDir('asc');
+      }
+      
+      const hoverIndex = columnTasksWithoutDragged.findIndex(t => t.id === hoverTaskId);
+      if (hoverIndex !== -1) {
+        if (dropPosition === 'before') {
+          const prevTask = columnTasksWithoutDragged[hoverIndex - 1];
+          const hoverTask = columnTasksWithoutDragged[hoverIndex];
+          if (prevTask) {
+            newOrderIndex = ((prevTask.orderIndex || 0) + (hoverTask.orderIndex || 0)) / 2;
+          } else {
+            newOrderIndex = (hoverTask.orderIndex || 0) + (sortDir === 'asc' ? -1000 : 1000);
+          }
+        } else {
+          const hoverTask = columnTasksWithoutDragged[hoverIndex];
+          const nextTask = columnTasksWithoutDragged[hoverIndex + 1];
+          if (nextTask) {
+            newOrderIndex = ((hoverTask.orderIndex || 0) + (nextTask.orderIndex || 0)) / 2;
+          } else {
+            newOrderIndex = (hoverTask.orderIndex || 0) + (sortDir === 'asc' ? 1000 : -1000);
+          }
+        }
+      }
+    } else if (columnTasksWithoutDragged.length > 0) {
+      if (task.status !== targetStatus) {
+        const lastTask = columnTasksWithoutDragged[columnTasksWithoutDragged.length - 1];
+        newOrderIndex = (lastTask.orderIndex || 0) + (sortDir === 'asc' ? 1000 : -1000);
+      }
+    } else {
+      newOrderIndex = Date.now();
+    }
+
+    // Optimistic update
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: targetStatus, orderIndex: newOrderIndex } : t));
+    
+    try {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ ...task, status: targetStatus, orderIndex: newOrderIndex })
+      });
+    } catch (err) {
+      console.error('Failed to update status', err);
+    } finally {
+      fetchData();
+    }
+  };
+
+  const handleCreateSubtask = (parentId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setEditingTask(null);
     setSelectedParentId(parentId);
     setIsModalOpen(true);
@@ -276,13 +357,22 @@ export default function Board() {
             </button>
           </div>
           {project && (
-            <button
-              onClick={() => setIsWorkloadModalOpen(true)}
-              className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] hover:border-blue-500/50 text-slate-300 hover:text-white px-3 py-1.5 rounded transition-all text-sm font-medium"
-            >
-              <Activity size={14} className="text-blue-500" />
-              <span>Team Workload</span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsWorkloadModalOpen(true)}
+                className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] hover:border-blue-500/50 text-slate-300 hover:text-white px-3 py-1.5 rounded transition-all text-sm font-medium"
+              >
+                <Activity size={14} className="text-blue-500" />
+                <span>Team Workload</span>
+              </button>
+              <button
+                onClick={() => setIsActivityModalOpen(true)}
+                className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] hover:border-blue-500/50 text-slate-300 hover:text-white px-3 py-1.5 rounded transition-all text-sm font-medium"
+              >
+                <Clock size={14} className="text-blue-500" />
+                <span>Project Activity</span>
+              </button>
+            </>
           )}
           <div className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] rounded px-3 py-1.5 text-[10px]">
             <Search size={14} className="text-slate-500 shrink-0" />
@@ -302,7 +392,8 @@ export default function Board() {
               onChange={(e) => setFilterAssignee(e.target.value)}
             >
               <option value="all" className="bg-[#1a1d23]">ALL USERS</option>
-              {users.map(u => <option key={u.id} value={u.id} className="bg-[#1a1d23]">{u.name}</option>)}
+              {user && <option value={user.id} className="bg-[#1a1d23]">ASSIGNED TO ME</option>}
+              {users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id} className="bg-[#1a1d23]">{u.name}</option>)}
             </select>
             <span className="text-[#2d3139] px-1">|</span>
             <select 
@@ -341,6 +432,7 @@ export default function Board() {
                  setSortDir(dir as SortDirection);
                }}
              >
+               <option value="custom-asc" className="bg-[#1a1d23]">Custom (Drag & Drop)</option>
                <option value="priority-desc" className="bg-[#1a1d23]">Highest Priority</option>
                <option value="priority-asc" className="bg-[#1a1d23]">Lowest Priority</option>
                <option value="deadline-asc" className="bg-[#1a1d23]">Nearest Deadline</option>
@@ -381,38 +473,7 @@ export default function Board() {
                 const taskId = e.dataTransfer.getData('taskId');
                 if (!taskId) return;
                 
-                const task = tasks.find(t => t.id === taskId);
-                if (task && task.status !== column.id) {
-                  // Check dependencies if moving to "done"
-                  if (column.id === 'done') {
-                    const deps = task.dependencies || [];
-                    const pendingDeps = deps.filter(depId => {
-                      const dep = tasks.find(t => t.id === depId);
-                      return dep && dep.status !== 'done';
-                    });
-                    if (pendingDeps.length > 0) {
-                      alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
-                      return;
-                    }
-                  }
-
-                  // Optimistic update
-                  setTasks(tasks.map(t => t.id === taskId ? { ...t, status: column.id } : t));
-                  try {
-                    await fetch(`/api/tasks/${taskId}`, {
-                      method: 'PUT',
-                      headers: { 
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}` 
-                      },
-                      body: JSON.stringify({ ...task, status: column.id })
-                    });
-                  } catch (err) {
-                    console.error('Failed to update status', err);
-                  } finally {
-                    fetchData();
-                  }
-                }
+                handleDropTask(taskId, column.id);
               }}
             >
               <div className="px-4 py-3 flex justify-between items-center border-b border-[#2d3139]">
@@ -434,6 +495,37 @@ export default function Board() {
                       draggable
                       onDragStart={(e) => {
                         e.dataTransfer.setData('taskId', task.id);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = e.clientY - rect.top;
+                        if (y < rect.height / 2) {
+                          e.currentTarget.style.borderTopColor = '#3b82f6';
+                          e.currentTarget.style.borderBottomColor = '#2d3139';
+                        } else {
+                          e.currentTarget.style.borderTopColor = '#2d3139';
+                          e.currentTarget.style.borderBottomColor = '#3b82f6';
+                        }
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.style.borderTopColor = '';
+                        e.currentTarget.style.borderBottomColor = '';
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.currentTarget.style.borderTopColor = '';
+                        e.currentTarget.style.borderBottomColor = '';
+                        const draggedTaskId = e.dataTransfer.getData('taskId');
+                        if (!draggedTaskId || draggedTaskId === task.id) return;
+                        
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = e.clientY - rect.top;
+                        const position = y < rect.height / 2 ? 'before' : 'after';
+                        
+                        handleDropTask(draggedTaskId, column.id, task.id, position);
                       }}
                       onClick={() => handleEditTask(task)}
                       className={cn(
@@ -481,7 +573,7 @@ export default function Board() {
                           <button 
                             className="text-slate-500 hover:text-blue-400 p-1 rounded hover:bg-blue-500/10"
                             title="Add Subtask"
-                            onClick={(e) => handleCreateSubtask(e, task.id)}
+                            onClick={(e) => handleCreateSubtask(task.id, e)}
                           >
                             <Plus size={14} />
                           </button>
@@ -549,6 +641,41 @@ export default function Board() {
                                   e.stopPropagation();
                                   e.dataTransfer.setData('taskId', st.id);
                                 }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const y = e.clientY - rect.top;
+                                  if (y < rect.height / 2) {
+                                    e.currentTarget.style.borderTopColor = '#3b82f6';
+                                    e.currentTarget.style.borderBottomColor = '';
+                                  } else {
+                                    e.currentTarget.style.borderTopColor = '';
+                                    e.currentTarget.style.borderBottomColor = '#3b82f6';
+                                  }
+                                }}
+                                onDragLeave={(e) => {
+                                  e.currentTarget.style.borderTopColor = '';
+                                  e.currentTarget.style.borderBottomColor = '';
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.currentTarget.style.borderTopColor = '';
+                                  e.currentTarget.style.borderBottomColor = '';
+                                  const draggedTaskId = e.dataTransfer.getData('taskId');
+                                  if (!draggedTaskId || draggedTaskId === st.id) return;
+                                  
+                                  const draggedTask = tasks.find(t => t.id === draggedTaskId);
+                                  if (!draggedTask) return;
+                                  // For subtasks, only allow if same parentId (so we don't accidentally move parents into subtasks)
+                                  if (draggedTask.parentId === st.parentId) {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const y = e.clientY - rect.top;
+                                    const position = y < rect.height / 2 ? 'before' : 'after';
+                                    handleDropTask(draggedTaskId, column.id, st.id, position);
+                                  }
+                                }}
                                 className="flex justify-between items-center bg-[#1a1d23] p-1.5 rounded cursor-pointer hover:bg-white/5 border border-transparent hover:border-[#2d3139]"
                                 onClick={(e) => { e.stopPropagation(); handleEditTask(st); }}
                               >
@@ -612,6 +739,7 @@ export default function Board() {
           onSave={handleSaveTask}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
+          onCreateSubtask={handleCreateSubtask}
         />
       )}
 
@@ -674,6 +802,14 @@ export default function Board() {
           projectId={project.id}
           projectName={project.name}
           onClose={() => setIsWorkloadModalOpen(false)}
+        />
+      )}
+      {isActivityModalOpen && project && (
+        <ProjectActivityModal
+          projectId={project.id}
+          projectName={project.name}
+          users={users}
+          onClose={() => setIsActivityModalOpen(false)}
         />
       )}
     </div>

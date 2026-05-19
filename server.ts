@@ -137,7 +137,9 @@ async function initDb(): Promise<DatabaseWrapper> {
       creatorId TEXT NOT NULL,
       branchName TEXT,
       parentId TEXT,
-      createdAt TEXT NOT NULL
+      projectId TEXT,
+      createdAt TEXT NOT NULL,
+      orderIndex REAL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS teams (
       id TEXT PRIMARY KEY,
@@ -182,6 +184,12 @@ async function initDb(): Promise<DatabaseWrapper> {
       createdAt TEXT NOT NULL
     );
   `);
+
+  try {
+    await db.exec('ALTER TABLE tasks ADD COLUMN orderIndex REAL DEFAULT 0;');
+  } catch(err) {
+    // ignore
+  }
 
   try {
     await db.exec("ALTER TABLE tasks ADD COLUMN projectId TEXT");
@@ -382,6 +390,38 @@ app.post("/api/tasks/:id/comments", authenticateToken, async (req: any, res: any
   res.json(comment);
 });
 
+// Edit Comment
+app.put("/api/tasks/:taskId/comments/:commentId", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const { taskId, commentId } = req.params;
+  const { content } = req.body;
+  
+  const comment = await db.get("SELECT * FROM task_comments WHERE id = ? AND taskId = ?", [commentId, taskId]);
+  if (!comment) return res.status(404).json({ error: "Comment not found" });
+  if (comment.userId !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: "Unauthorized to edit this comment" });
+  }
+
+  await db.run("UPDATE task_comments SET content = ? WHERE id = ?", [content, commentId]);
+  const updatedComment = await db.get("SELECT * FROM task_comments WHERE id = ?", commentId);
+  res.json(updatedComment);
+});
+
+// Delete Comment
+app.delete("/api/tasks/:taskId/comments/:commentId", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const { taskId, commentId } = req.params;
+
+  const comment = await db.get("SELECT * FROM task_comments WHERE id = ? AND taskId = ?", [commentId, taskId]);
+  if (!comment) return res.status(404).json({ error: "Comment not found" });
+  if (comment.userId !== req.user.id && req.user.role !== 'admin') {
+    return res.status(403).json({ error: "Unauthorized to delete this comment" });
+  }
+
+  await db.run("DELETE FROM task_comments WHERE id = ?", commentId);
+  res.json({ success: true });
+});
+
 // Create Task
 app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
   const db = await dbPromise;
@@ -398,11 +438,12 @@ app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
     parentId: req.body.parentId || null,
     projectId: req.body.projectId || null,
     createdAt: new Date().toISOString(),
+    orderIndex: req.body.orderIndex !== undefined ? req.body.orderIndex : Date.now(),
   };
 
   await db.run(
-    "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, projectId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [newTask.id, newTask.title, newTask.description, newTask.status, newTask.priority, newTask.deadline, newTask.assigneeId, newTask.creatorId, newTask.branchName, newTask.parentId, newTask.projectId, newTask.createdAt]
+    "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, projectId, createdAt, orderIndex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [newTask.id, newTask.title, newTask.description, newTask.status, newTask.priority, newTask.deadline, newTask.assigneeId, newTask.creatorId, newTask.branchName, newTask.parentId, newTask.projectId, newTask.createdAt, newTask.orderIndex]
   );
   
   if (req.body.dependencies && Array.isArray(req.body.dependencies)) {
@@ -463,8 +504,8 @@ app.put("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
   }
 
   await db.run(
-    "UPDATE tasks SET title=?, description=?, status=?, priority=?, deadline=?, assigneeId=?, branchName=?, parentId=?, projectId=? WHERE id=?",
-    [updated.title, updated.description, updated.status, updated.priority, updated.deadline, updated.assigneeId, updated.branchName, updated.parentId, updated.projectId, updated.id]
+    "UPDATE tasks SET title=?, description=?, status=?, priority=?, deadline=?, assigneeId=?, branchName=?, parentId=?, projectId=?, orderIndex=? WHERE id=?",
+    [updated.title, updated.description, updated.status, updated.priority, updated.deadline, updated.assigneeId, updated.branchName, updated.parentId, updated.projectId, updated.orderIndex !== undefined ? updated.orderIndex : task.orderIndex, updated.id]
   );
   
   if (req.body.dependencies !== undefined && Array.isArray(req.body.dependencies)) {
@@ -509,11 +550,13 @@ app.delete("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
   }
 
   await db.run("DELETE FROM tasks WHERE id = ?", req.params.id);
-  // Optional: Also delete subtasks
+  // Also delete subtasks
   await db.run("DELETE FROM tasks WHERE parentId = ?", req.params.id);
   
-  // Delete dependencies
+  // Clean up associated data
   await db.run("DELETE FROM task_dependencies WHERE taskId = ? OR blockedByTaskId = ?", [req.params.id, req.params.id]);
+  await db.run("DELETE FROM task_comments WHERE taskId = ?", req.params.id);
+  await db.run("DELETE FROM task_activities WHERE taskId = ?", req.params.id);
   
   if (task.parentId) {
     const parentTask = await db.get("SELECT * FROM tasks WHERE id = ?", task.parentId);
@@ -539,10 +582,15 @@ app.delete("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
 // Generate Branch Name
 app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
   try {
+    const { title, type } = req.body;
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const randomLetters = Array.from({length: 3}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     const nextNumber = Math.floor(Math.random() * 90000) + 10000;
-    const branchName = `${randomLetters}-${nextNumber}`;
+    
+    const randomId = `${randomLetters}-${nextNumber}`;
+    
+    // Generate an ID like ABC-12345
+    const branchName = randomId;
     
     res.json({ branchName });
   } catch (error: any) {
@@ -612,6 +660,22 @@ app.post("/api/projects", authenticateToken, async (req: any, res: any) => {
   );
   const newProject = await db.get("SELECT * FROM projects WHERE id = ?", projectId);
   res.json(newProject);
+});
+
+// Get Project Activity
+app.get("/api/projects/:id/activity", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  
+  const activities = await db.all(`
+    SELECT a.*, t.title as taskTitle
+    FROM task_activities a
+    JOIN tasks t ON a.taskId = t.id
+    WHERE t.projectId = ?
+    ORDER BY a.createdAt DESC
+    LIMIT 50
+  `, req.params.id);
+  
+  res.json(activities);
 });
 
 app.put("/api/projects/:id", authenticateToken, async (req: any, res: any) => {

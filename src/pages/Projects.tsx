@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Project } from '../types';
-import { FolderKanban, Plus, X, Trash2, Calendar, LayoutDashboard, Activity } from 'lucide-react';
+import { Project, User } from '../types';
+import { FolderKanban, Plus, X, Trash2, Calendar, LayoutDashboard, Activity, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router';
 import WorkloadModal from '../components/WorkloadModal';
+import ProjectActivityModal from '../components/ProjectActivityModal';
 
 export default function Projects() {
   const { token, user: currentUser } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isWorkloadModalOpen, setIsWorkloadModalOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const navigate = useNavigate();
   
   const fetchProjects = async () => {
@@ -22,6 +25,12 @@ export default function Projects() {
       });
       if (res.ok) {
         setProjects(await res.json());
+      }
+      const usersRes = await fetch('/api/users', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (usersRes.ok) {
+        setUsers(await usersRes.json());
       }
     } catch (err) {
       console.error(err);
@@ -91,23 +100,35 @@ export default function Projects() {
                     <Calendar size={12} className="mr-1.5" />
                     {format(new Date(project.createdAt), 'MMM d, yyyy')}
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedProject(project);
-                      setIsWorkloadModalOpen(true);
-                    }}
-                    className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white font-medium bg-[#0a0c10] hover:bg-[#2d3139] px-2.5 py-1.5 rounded transition-colors border border-[#2d3139]"
-                  >
-                    <Activity size={14} />
-                    <span>Workload</span>
-                  </button>
-                  <button
-                    onClick={() => navigate(`/board?projectId=${project.id}`)}
-                    className="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-colors"
-                  >
-                    <LayoutDashboard size={14} />
-                    <span>View Board</span>
-                  </button>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setIsWorkloadModalOpen(true);
+                      }}
+                      className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white font-medium bg-[#0a0c10] hover:bg-[#2d3139] px-2.5 py-1.5 rounded transition-colors border border-[#2d3139]"
+                    >
+                      <Activity size={14} />
+                      <span>Workload</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedProject(project);
+                        setIsActivityModalOpen(true);
+                      }}
+                      className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white font-medium bg-[#0a0c10] hover:bg-[#2d3139] px-2.5 py-1.5 rounded transition-colors border border-[#2d3139]"
+                    >
+                      <Clock size={14} />
+                      <span>Activity</span>
+                    </button>
+                    <button
+                      onClick={() => navigate(`/board?projectId=${project.id}`)}
+                      className="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-colors"
+                    >
+                      <LayoutDashboard size={14} />
+                      <span>Board</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -131,6 +152,18 @@ export default function Projects() {
           projectName={selectedProject.name}
           onClose={() => {
             setIsWorkloadModalOpen(false);
+            setSelectedProject(null);
+          }}
+        />
+      )}
+
+      {isActivityModalOpen && selectedProject && (
+        <ProjectActivityModal
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          users={users}
+          onClose={() => {
+            setIsActivityModalOpen(false);
             setSelectedProject(null);
           }}
         />

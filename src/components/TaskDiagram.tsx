@@ -46,7 +46,7 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 };
 
 export default function TaskDiagram({ tasks }: TaskDiagramProps) {
-  const { initialNodes, initialEdges } = useMemo(() => {
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
     const nodes = tasks.map((task) => {
       let bgColor = '#1a1d23';
       if (task.status === 'done') bgColor = '#0f1115';

@@ -14,11 +14,12 @@ interface TaskModalProps {
   onSave: (task: Partial<Task>) => void;
   onUpdateTask?: (taskId: string, currentTask: Task, updates: Partial<Task>) => void;
   onDeleteTask?: (taskId: string) => void;
+  onCreateSubtask?: (parentId: string) => void;
   parentId?: string | null;
   projectId?: string | null;
 }
 
-export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, parentId, projectId }: TaskModalProps) {
+export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId }: TaskModalProps) {
   const { token, user } = useAuth();
   const isEdit = !!task;
   const [isViewMode, setIsViewMode] = useState(isEdit);
@@ -42,6 +43,10 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
   const [comments, setComments] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentContent, setEditCommentContent] = useState('');
+  const [newCommentPreviewMode, setNewCommentPreviewMode] = useState(false);
+  const [editCommentPreviewMode, setEditCommentPreviewMode] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
@@ -78,6 +83,41 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
       fetch(`/api/tasks/${task.id}/details`, { headers: { Authorization: `Bearer ${token}` } })
         .then(res => res.json())
         .then(data => setActivities(data.activities || []));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editCommentContent.trim() || !task) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/comments/${commentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: editCommentContent.trim() })
+      });
+      const updatedComment = await res.json();
+      setComments(comments.map(c => c.id === commentId ? updatedComment : c));
+      setEditingCommentId(null);
+      setEditCommentContent('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm('Delete this comment?') || !task) return;
+    try {
+      await fetch(`/api/tasks/${task.id}/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      setComments(comments.filter(c => c.id !== commentId));
     } catch (err) {
       console.error(err);
     }
@@ -241,42 +281,57 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                         </div>
                       )}
 
-                      {subtasks.length > 0 && (
+                      {true && (
                         <div>
-                          <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 border-b border-[#2d3139] pb-1">Subtasks ({subtasks.length})</h3>
-                          <div className="space-y-2">
-                            {subtasks.map(st => (
-                              <div key={st.id} className="flex items-center justify-between bg-[#1a1d23] p-3 rounded border border-[#2d3139]">
-                                <div className="flex items-center space-x-3">
-                                  <button 
-                                    onClick={() => {
-                                      if (onUpdateTask) {
-                                        if (st.status !== 'done') {
-                                          const pendingDeps = (st.dependencies || []).filter(depId => {
-                                            const dep = tasks.find(t => t.id === depId);
-                                            return dep && dep.status !== 'done';
-                                          });
-                                          if (pendingDeps.length > 0) {
-                                            alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
-                                            return;
-                                          }
-                                        }
-                                        onUpdateTask(st.id, st, { status: st.status === 'done' ? 'todo' : 'done' });
-                                      }
-                                    }}
-                                    className="focus:outline-none shrink-0 cursor-pointer"
-                                    title={st.status === 'done' ? 'Mark as to do' : 'Mark as done'}
-                                  >
-                                    <CheckCircle2 size={16} className={cn("transition-colors hover:text-green-400", st.status === 'done' ? 'text-green-500' : 'text-slate-600')} />
-                                  </button>
-                                  <span className={cn("text-sm text-white", st.status === 'done' && 'line-through text-slate-500')}>{st.title}</span>
-                                </div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0a0c10] px-2 py-1 rounded">
-                                  {st.status.replace('_', ' ')}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="flex justify-between items-center mb-3 border-b border-[#2d3139] pb-1">
+                            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subtasks ({subtasks.length})</h3>
+                            {onCreateSubtask && (
+                               <button 
+                                 onClick={() => onCreateSubtask(task.id)} 
+                                 className="flex items-center space-x-1 text-[9px] font-bold bg-[#1a1d23] border border-[#2d3139] px-2 py-0.5 rounded text-slate-400 hover:text-white transition-colors uppercase tracking-wider"
+                               >
+                                 <Plus size={10} />
+                                 <span>Add Subtask</span>
+                               </button>
+                            )}
                           </div>
+                          {subtasks.length > 0 ? (
+                            <div className="space-y-2">
+                              {subtasks.map(st => (
+                                <div key={st.id} className="flex items-center justify-between bg-[#1a1d23] p-3 rounded border border-[#2d3139]">
+                                  <div className="flex items-center space-x-3">
+                                    <button 
+                                      onClick={() => {
+                                        if (onUpdateTask) {
+                                          if (st.status !== 'done') {
+                                            const pendingDeps = (st.dependencies || []).filter(depId => {
+                                              const dep = tasks.find(t => t.id === depId);
+                                              return dep && dep.status !== 'done';
+                                            });
+                                            if (pendingDeps.length > 0) {
+                                              alert(`Cannot complete task. ${pendingDeps.length} dependencies are still pending.`);
+                                              return;
+                                            }
+                                          }
+                                          onUpdateTask(st.id, st, { status: st.status === 'done' ? 'todo' : 'done' });
+                                        }
+                                      }}
+                                      className="focus:outline-none shrink-0 cursor-pointer"
+                                      title={st.status === 'done' ? 'Mark as to do' : 'Mark as done'}
+                                    >
+                                      <CheckCircle2 size={16} className={cn("transition-colors hover:text-green-400", st.status === 'done' ? 'text-green-500' : 'text-slate-600')} />
+                                    </button>
+                                    <span className={cn("text-sm text-white", st.status === 'done' && 'line-through text-slate-500')}>{st.title}</span>
+                                  </div>
+                                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-[#0a0c10] px-2 py-1 rounded">
+                                    {st.status.replace('_', ' ')}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-500 italic p-2 mt-2 border border-[#2d3139] border-dashed rounded text-center">No subtasks found.</div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -290,13 +345,95 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                          ) : comments.length > 0 ? (
                             comments.map(c => {
                               const author = users.find(u => u.id === c.userId);
+                              const isMe = c.userId === user?.id;
+                              const canModify = isMe || user?.role === 'admin';
+                              const isEditing = editingCommentId === c.id;
+
                               return (
-                                <div key={c.id} className="bg-[#0a0c10] border border-[#2d3139] p-3 rounded">
+                                <div key={c.id} className="bg-[#0a0c10] border border-[#2d3139] p-3 rounded group">
                                   <div className="flex items-center justify-between mb-2">
-                                     <span className="text-xs font-bold text-white">{author ? author.name : 'Unknown'}</span>
-                                     <span className="text-[9px] text-slate-500 font-mono">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
+                                     <div className="flex items-center space-x-2">
+                                       <span className="text-xs font-bold text-white">{author ? author.name : 'Unknown'}</span>
+                                       <span className="text-[9px] text-slate-500 font-mono">{format(new Date(c.createdAt), 'MMM d, h:mm a')}</span>
+                                     </div>
+                                     {canModify && !isEditing && (
+                                       <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity space-x-1">
+                                          <button 
+                                            onClick={() => { setEditingCommentId(c.id); setEditCommentContent(c.content); }}
+                                            className="text-slate-500 hover:text-blue-400 p-0.5 rounded transition-colors"
+                                            title="Edit comment"
+                                          >
+                                            <Edit2 size={12} />
+                                          </button>
+                                          <button 
+                                            onClick={() => handleDeleteComment(c.id)}
+                                            className="text-slate-500 hover:text-red-400 p-0.5 rounded transition-colors"
+                                            title="Delete comment"
+                                          >
+                                            <Trash size={12} />
+                                          </button>
+                                       </div>
+                                     )}
                                   </div>
-                                  <p className="text-sm text-slate-300 whitespace-pre-wrap">{c.content}</p>
+                                  
+                                  {isEditing ? (
+                                    <div className="space-y-2 mt-2 border-t border-[#2d3139] pt-2">
+                                      <div className="flex justify-between items-center mb-1">
+                                        <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">Edit Comment (Markdown)</label>
+                                        <div className="flex space-x-1 bg-[#0a0c10] border border-[#2d3139] rounded p-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditCommentPreviewMode(false)}
+                                            className={`px-3 py-1 text-[9px] font-bold rounded-sm uppercase tracking-wider ${!editCommentPreviewMode ? 'bg-[#2d3139] text-white' : 'text-slate-500 hover:text-white'}`}
+                                          >
+                                            Edit View
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditCommentPreviewMode(true)}
+                                            className={`px-3 py-1 text-[9px] font-bold rounded-sm uppercase tracking-wider ${editCommentPreviewMode ? 'bg-[#2d3139] text-white' : 'text-slate-500 hover:text-white'}`}
+                                          >
+                                            Split View
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div className={`flex gap-2 ${editCommentPreviewMode ? 'h-32' : 'h-16'}`}>
+                                        <textarea
+                                          className={`bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 font-mono resize-y min-h-[64px] h-full flex-1 ${editCommentPreviewMode ? 'w-1/2' : 'w-full'}`}
+                                          value={editCommentContent}
+                                          onChange={e => setEditCommentContent(e.target.value)}
+                                        />
+                                        {editCommentPreviewMode && (
+                                          <div className="w-1/2 overflow-y-auto prose prose-invert prose-sm max-w-none p-2 rounded border border-[#2d3139] bg-[#0a0c10] text-slate-300 font-sans h-full">
+                                            {editCommentContent ? (
+                                              <Markdown>{editCommentContent}</Markdown>
+                                            ) : (
+                                              <span className="text-slate-600 italic">Preview...</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex justify-end space-x-2 mt-2">
+                                        <button 
+                                          onClick={() => setEditingCommentId(null)}
+                                          className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white px-2 py-1"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button 
+                                          onClick={() => handleEditComment(c.id)}
+                                          disabled={!editCommentContent.trim()}
+                                          className="text-[10px] font-bold uppercase tracking-widest bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded disabled:opacity-50"
+                                        >
+                                          Save
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="prose prose-invert prose-sm max-w-none text-slate-300">
+                                      <Markdown>{c.content}</Markdown>
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })
@@ -304,20 +441,52 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                            <div className="text-sm text-slate-500 italic p-4 text-center">No comments yet.</div>
                          )}
                        </div>
-                       <div className="mt-auto shrink-0 flex space-x-2 pt-2">
-                         <textarea 
-                           className="flex-1 bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-2 text-sm text-white resize-none h-16 focus:outline-none focus:border-blue-500"
-                           placeholder="Write a comment..."
-                           value={newComment}
-                           onChange={e => setNewComment(e.target.value)}
-                         />
-                         <button 
-                           onClick={handleCreateComment}
-                           disabled={!newComment.trim()}
-                           className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] uppercase tracking-widest rounded px-4 disabled:opacity-50 transition-colors"
-                         >
-                           Post
-                         </button>
+                       <div className="mt-auto shrink-0 flex flex-col space-y-2 pt-4 border-t border-[#2d3139]">
+                         <div className="flex justify-between items-center mb-1">
+                           <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">New Comment (Markdown)</label>
+                           <div className="flex space-x-1 bg-[#0a0c10] border border-[#2d3139] rounded p-0.5">
+                             <button
+                               type="button"
+                               onClick={() => setNewCommentPreviewMode(false)}
+                               className={`px-3 py-1 text-[9px] font-bold rounded-sm uppercase tracking-wider ${!newCommentPreviewMode ? 'bg-[#2d3139] text-white' : 'text-slate-500 hover:text-white'}`}
+                             >
+                               Edit View
+                             </button>
+                             <button
+                               type="button"
+                               onClick={() => setNewCommentPreviewMode(true)}
+                               className={`px-3 py-1 text-[9px] font-bold rounded-sm uppercase tracking-wider ${newCommentPreviewMode ? 'bg-[#2d3139] text-white' : 'text-slate-500 hover:text-white'}`}
+                             >
+                               Split View
+                             </button>
+                           </div>
+                         </div>
+                         <div className={`flex gap-2 ${newCommentPreviewMode ? 'h-32' : 'h-16'}`}>
+                           <textarea 
+                             className={`bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-2 text-sm text-white resize-y min-h-[64px] focus:outline-none focus:border-blue-500 font-mono h-full flex-1 ${newCommentPreviewMode ? 'w-1/2' : 'w-full'}`}
+                             placeholder="Write a comment... Supports markdown."
+                             value={newComment}
+                             onChange={e => setNewComment(e.target.value)}
+                           />
+                           {newCommentPreviewMode && (
+                             <div className="w-1/2 overflow-y-auto prose prose-invert prose-sm max-w-none p-2 rounded border border-[#2d3139] bg-[#0a0c10] text-slate-300 font-sans h-full">
+                               {newComment ? (
+                                 <Markdown>{newComment}</Markdown>
+                               ) : (
+                                 <span className="text-slate-600 italic">Preview...</span>
+                               )}
+                             </div>
+                           )}
+                         </div>
+                         <div className="flex justify-end mt-2">
+                           <button 
+                             onClick={() => { handleCreateComment(); setNewCommentPreviewMode(false); }}
+                             disabled={!newComment.trim()}
+                             className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] uppercase tracking-widest rounded px-4 py-2 disabled:opacity-50 transition-colors"
+                           >
+                             Post Comment
+                           </button>
+                         </div>
                        </div>
                     </div>
                   )}

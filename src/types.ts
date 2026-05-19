@@ -19,6 +19,7 @@ export interface Task {
   parentId?: string | null;
   projectId?: string | null;
   dependencies?: string[];
+  orderIndex?: number;
 }
 
 export interface Project {
