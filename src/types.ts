@@ -27,6 +27,8 @@ export interface Project {
   name: string;
   description: string;
   ownerId: string;
+  projectKey?: string;
+  taskCounter?: number;
   createdAt: string;
 }
 

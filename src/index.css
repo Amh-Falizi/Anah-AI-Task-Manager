@@ -2,13 +2,51 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-slate-900: #0f1115;
-  --color-slate-800: #1a1d23;
-  --color-slate-700: #2d3139;
+  --color-page-bg: var(--app-bg);
+  --color-surface: var(--app-surface);
+  --color-surface-dim: var(--app-surface-dim);
+  --color-surface-accent: var(--app-surface-accent);
+  --color-border-subtle: var(--app-border-subtle);
+  --color-border-strong: var(--app-border-strong);
+  
+  --color-primary: var(--app-text-primary);
+  --color-strong: var(--app-text-strong);
+  --color-muted: var(--app-text-muted);
+  --color-subtle: var(--app-text-subtle);
+}
+
+:root {
+  /* Default (Dark Mode) */
+  --app-bg: #0f1115;
+  --app-surface: #1a1d23;
+  --app-surface-dim: #0a0c10;
+  --app-surface-accent: #2d3139;
+  --app-border-subtle: #2d3139;
+  --app-border-strong: #3d424e;
+  
+  --app-text-primary: #cbd5e1;
+  --app-text-strong: #ffffff;
+  --app-text-muted: #94a3b8;
+  --app-text-subtle: #64748b;
+}
+
+html.light {
+  /* Light Mode */
+  --app-bg: #f8fafc;
+  --app-surface: #ffffff;
+  --app-surface-dim: #f1f5f9;
+  --app-surface-accent: #e2e8f0;
+  --app-border-subtle: #cbd5e1;
+  --app-border-strong: #94a3b8;
+  
+  --app-text-primary: #334155;
+  --app-text-strong: #0f172a;
+  --app-text-muted: #475569;
+  --app-text-subtle: #64748b;
 }
 
 body {
-  @apply bg-[#0f1115] text-slate-300 font-sans antialiased m-0 p-0 h-full w-full;
+  @apply bg-page-bg text-primary font-sans antialiased m-0 p-0 h-full w-full;
 }
 
 html {

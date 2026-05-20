@@ -129,7 +129,7 @@ export default function NotificationsDropdown() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 text-slate-500 hover:text-white rounded-md transition-colors relative"
+        className="p-2 text-subtle hover:text-strong rounded-md transition-colors relative"
         title="Notifications"
       >
         <Bell size={20} />
@@ -139,9 +139,9 @@ export default function NotificationsDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-0 left-full ml-4 w-80 bg-[#1a1d23] border border-[#2d3139] rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[400px]">
-          <div className="p-3 border-b border-[#2d3139] flex items-center justify-between bg-[#0a0c10]">
-            <h3 className="text-white font-bold text-sm tracking-tight">Notifications</h3>
+        <div className="absolute bottom-0 left-full ml-4 w-80 bg-surface border border-border-subtle rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[400px]">
+          <div className="p-3 border-b border-border-subtle flex items-center justify-between bg-surface-dim">
+            <h3 className="text-strong font-bold text-sm tracking-tight">Notifications</h3>
             {unreadCount > 0 && (
               <button 
                 onClick={markAllAsRead}
@@ -154,7 +154,7 @@ export default function NotificationsDropdown() {
           
           <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
             {notifications.length === 0 ? (
-              <div className="text-center py-6 text-slate-500 text-xs">
+              <div className="text-center py-6 text-subtle text-xs">
                 No new notifications
               </div>
             ) : (
@@ -165,7 +165,7 @@ export default function NotificationsDropdown() {
                   // In a real app we might open the task directly or navigate to it 
                   onClick={() => setIsOpen(false)}
                   className={cn(
-                    "block p-3 rounded border border-transparent hover:border-[#2d3139] hover:bg-[#2d3139]/30 transition-colors cursor-pointer group relative",
+                    "block p-3 rounded border border-transparent hover:border-border-subtle hover:bg-surface-accent/30 transition-colors cursor-pointer group relative",
                     !notif.isRead && "bg-blue-500/5 hover:bg-blue-500/10"
                   )}
                 >
@@ -187,7 +187,7 @@ export default function NotificationsDropdown() {
                       </div>
                       <p className={cn(
                         "text-sm truncate mt-0.5",
-                        notif.isRead ? "text-slate-400" : "text-slate-200 font-medium"
+                        notif.isRead ? "text-muted" : "text-strong font-medium"
                       )}>
                         {notif.title}
                       </p>
@@ -197,7 +197,7 @@ export default function NotificationsDropdown() {
                   {!notif.isRead && (
                     <button 
                       onClick={(e) => markAsRead(notif.id, e)}
-                      className="absolute top-3 right-3 text-slate-500 hover:text-white p-1 rounded-full hover:bg-[#2d3139] opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-3 right-3 text-subtle hover:text-strong p-1 rounded-full hover:bg-surface-accent opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Mark as read"
                     >
                       <X size={14} />

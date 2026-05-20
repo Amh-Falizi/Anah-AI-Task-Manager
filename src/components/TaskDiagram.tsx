@@ -58,8 +58,8 @@ export default function TaskDiagram({ tasks }: TaskDiagramProps) {
         data: {
           label: (
             <div className="flex flex-col text-left">
-               <div className="text-xs font-bold text-white truncate">{task.title}</div>
-               <div className="text-[9px] uppercase tracking-wider text-slate-400 font-bold mt-1 max-w-[170px] truncate">STATUS: {task.status.replace('_', ' ')}</div>
+               <div className="text-xs font-bold text-strong truncate">{task.title}</div>
+               <div className="text-[9px] uppercase tracking-wider text-muted font-bold mt-1 max-w-[170px] truncate">STATUS: {task.status.replace('_', ' ')}</div>
             </div>
           )
         },
@@ -124,7 +124,7 @@ export default function TaskDiagram({ tasks }: TaskDiagramProps) {
   const [edges, __, onEdgesChange] = useEdgesState(initialEdges);
 
   return (
-    <div className="w-full h-full bg-[#0a0c10]">
+    <div className="w-full h-full bg-surface-dim">
       <ReactFlow
         nodes={nodes}
         edges={edges}

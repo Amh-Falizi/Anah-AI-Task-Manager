@@ -107,7 +107,7 @@ export default function Dashboard() {
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-[#0a0c10] border border-[#2d3139] p-2 rounded text-xs text-white shadow-xl">
+        <div className="bg-surface-dim border border-border-subtle p-2 rounded text-xs text-strong shadow-xl">
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].payload.color }} />
             <span>{payload[0].name}: {payload[0].value}</span>
@@ -121,17 +121,17 @@ export default function Dashboard() {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Header */}
-      <header className="h-14 border-b border-[#2d3139] flex items-center justify-between px-6 bg-[#0f1115] shrink-0">
+      <header className="h-14 border-b border-border-subtle flex items-center justify-between px-6 bg-page-bg shrink-0">
         <div className="flex items-center space-x-4">
-          <h1 className="text-sm font-semibold text-white tracking-tight uppercase">Dashboard</h1>
+          <h1 className="text-sm font-semibold text-strong tracking-tight uppercase">Dashboard</h1>
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-500/10 text-green-500 border border-green-500/20">ACTIVE</span>
         </div>
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-500">User:</span>
-            <span className="text-slate-200 font-mono">{user?.name}</span>
+            <span className="text-subtle">User:</span>
+            <span className="text-strong font-mono">{user?.name}</span>
           </div>
-          <Link to="/board" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded shadow-lg transition-colors">
+          <Link to="/board" className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-strong text-xs font-bold rounded shadow-lg transition-colors">
             GO TO BOARD
           </Link>
         </div>
@@ -141,39 +141,39 @@ export default function Dashboard() {
       <div className="flex-1 p-6 flex flex-col space-y-6 overflow-y-auto">
         {/* Top Row: Stats */}
         <div className="grid grid-cols-4 gap-4 shrink-0">
-          <div className="bg-[#1a1d23] border border-[#2d3139] p-4 rounded-lg">
-            <div className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
+          <div className="bg-surface border border-border-subtle p-4 rounded-lg">
+            <div className="text-[10px] text-subtle font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
               <FileText size={14} /> Total Tasks
             </div>
             <div className="flex items-end space-x-2">
-              <div className="text-2xl font-mono text-white">{totalTasks}</div>
+              <div className="text-2xl font-mono text-strong">{totalTasks}</div>
             </div>
           </div>
           
-          <div className="bg-[#1a1d23] border border-[#2d3139] p-4 rounded-lg">
-            <div className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
+          <div className="bg-surface border border-border-subtle p-4 rounded-lg">
+            <div className="text-[10px] text-subtle font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
               <CheckCircle2 size={14} /> Completed
             </div>
-            <div className="text-2xl font-mono text-white">{completedTasks}</div>
+            <div className="text-2xl font-mono text-strong">{completedTasks}</div>
             {totalTasks > 0 && (
-              <div className="w-full h-1 bg-[#2d3139] mt-3 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-surface-accent mt-3 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500" style={{ width: `${(completedTasks/totalTasks)*100}%` }}></div>
               </div>
             )}
           </div>
 
-          <div className="bg-[#1a1d23] border border-[#2d3139] p-4 rounded-lg">
-            <div className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
+          <div className="bg-surface border border-border-subtle p-4 rounded-lg">
+            <div className="text-[10px] text-subtle font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
               <Clock size={14} /> In Progress
             </div>
-            <div className="text-2xl font-mono text-white">{inProgress}</div>
+            <div className="text-2xl font-mono text-strong">{inProgress}</div>
           </div>
 
-          <div className="bg-[#1a1d23] border border-[#2d3139] p-4 rounded-lg">
-            <div className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
+          <div className="bg-surface border border-border-subtle p-4 rounded-lg">
+            <div className="text-[10px] text-subtle font-bold uppercase mb-1 tracking-wider flex items-center gap-2">
               <AlertCircle size={14} /> Urgent Pending
             </div>
-            <div className="text-2xl font-mono text-white">{urgentTasks}</div>
+            <div className="text-2xl font-mono text-strong">{urgentTasks}</div>
             {urgentTasks > 0 && (
               <div className="flex mt-2 space-x-1">
                 <span className="text-[10px] text-red-400 font-bold">{urgentTasks} CRITICAL</span>
@@ -185,13 +185,13 @@ export default function Dashboard() {
         {/* Main Grid */}
         <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
           {/* Task List */}
-          <div className="col-span-8 bg-[#1a1d23] border border-[#2d3139] rounded-lg flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#2d3139] flex items-center justify-between">
-              <h2 className="text-xs font-bold text-white uppercase tracking-widest">My Assigned Tasks</h2>
+          <div className="col-span-8 bg-surface border border-border-subtle rounded-lg flex flex-col overflow-hidden">
+            <div className="px-4 py-3 border-b border-border-subtle flex items-center justify-between">
+              <h2 className="text-xs font-bold text-strong uppercase tracking-widest">My Assigned Tasks</h2>
             </div>
             <div className="overflow-y-auto divide-y divide-[#2d3139]">
               {myTasks.length === 0 ? (
-                <div className="p-6 text-center text-slate-500 text-sm">No tasks assigned to you.</div>
+                <div className="p-6 text-center text-subtle text-sm">No tasks assigned to you.</div>
               ) : (
                 myTasks.map(task => (
                   <div 
@@ -206,18 +206,18 @@ export default function Dashboard() {
                           task.priority === 'urgent' ? 'bg-red-500 text-red-500' :
                           task.priority === 'high' ? 'bg-amber-500 text-amber-500' :
                           task.priority === 'medium' ? 'bg-blue-500 text-blue-500' :
-                          'bg-slate-500 text-slate-500'
+                          'bg-slate-500 text-subtle'
                         )}></div>
                         <div>
                           <div className="text-xs font-bold text-slate-100">{task.title}</div>
                           {task.branchName && (
-                            <div className="text-[10px] text-slate-500 mt-0.5 font-mono italic">{task.branchName}</div>
+                            <div className="text-[10px] text-subtle mt-0.5 font-mono italic">{task.branchName}</div>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-mono text-slate-400">{format(new Date(task.deadline), 'MMM dd').toUpperCase()}</div>
-                        <div className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded mt-1 uppercase">
+                        <div className="text-[10px] font-mono text-muted">{format(new Date(task.deadline), 'MMM dd').toUpperCase()}</div>
+                        <div className="text-[9px] bg-slate-800 text-muted px-1.5 py-0.5 rounded mt-1 uppercase">
                           {task.status.replace('_', ' ')}
                         </div>
                       </div>
@@ -229,10 +229,10 @@ export default function Dashboard() {
           </div>
           
           <div className="col-span-4 flex flex-col space-y-6 overflow-hidden">
-            <div className="bg-[#1a1d23] border border-[#2d3139] p-4 rounded-lg flex-1 flex flex-col min-h-0">
+            <div className="bg-surface border border-border-subtle p-4 rounded-lg flex-1 flex flex-col min-h-0">
                <div className="flex items-center space-x-2 mb-4">
-                 <PieChartIcon size={14} className="text-slate-400" />
-                 <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Task Distribution</h2>
+                 <PieChartIcon size={14} className="text-muted" />
+                 <h2 className="text-[10px] font-bold text-subtle uppercase tracking-widest">Task Distribution</h2>
                </div>
                
                <div className="flex-1 min-h-[200px] flex items-center justify-center relative">
@@ -259,26 +259,26 @@ export default function Dashboard() {
                          height={36}
                          iconType="circle"
                          formatter={(value, entry: any) => (
-                           <span className="text-xs text-slate-400">{value}</span>
+                           <span className="text-xs text-muted">{value}</span>
                          )}
                        />
                      </PieChart>
                    </ResponsiveContainer>
                  ) : (
-                   <div className="text-center text-slate-500 text-sm">No tasks available to visualize.</div>
+                   <div className="text-center text-subtle text-sm">No tasks available to visualize.</div>
                  )}
                  {statusData.length > 0 && (
                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-8">
-                     <span className="text-2xl font-bold text-white leading-none">{totalTasks}</span>
-                     <span className="text-[9px] uppercase tracking-widest text-slate-500 mt-1">Total</span>
+                     <span className="text-2xl font-bold text-strong leading-none">{totalTasks}</span>
+                     <span className="text-[9px] uppercase tracking-widest text-subtle mt-1">Total</span>
                    </div>
                  )}
                  
                </div>
                
-               <div className="mt-auto pt-4 border-t border-[#2d3139]">
+               <div className="mt-auto pt-4 border-t border-border-subtle">
                  <div className="flex items-center justify-between text-[10px]">
-                   <span className="text-slate-500">Role: {user?.role.replace('_', ' ').toUpperCase()}</span>
+                   <span className="text-subtle">Role: {user?.role.replace('_', ' ').toUpperCase()}</span>
                  </div>
                </div>
              </div>
@@ -287,13 +287,13 @@ export default function Dashboard() {
       </div>
       
       {/* Status Bar */}
-      <footer className="h-8 border-t border-[#2d3139] px-4 flex items-center justify-between bg-[#0a0c10] text-[9px] font-mono tracking-tighter shrink-0">
+      <footer className="h-8 border-t border-border-subtle px-4 flex items-center justify-between bg-surface-dim text-[9px] font-mono tracking-tighter shrink-0">
         <div className="flex space-x-4">
           <div className="flex items-center space-x-1 text-green-500">
             <span className="block w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
             <span>DB: CONNECTED</span>
           </div>
-          <div className="text-slate-500">TASKS: {totalTasks}</div>
+          <div className="text-subtle">TASKS: {totalTasks}</div>
         </div>
       </footer>
 

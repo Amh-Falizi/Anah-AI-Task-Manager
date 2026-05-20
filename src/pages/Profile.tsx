@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { User as UserIcon, Save } from 'lucide-react';
+import UserAvatar from '../components/UserAvatar';
 
 export default function Profile() {
   const { user, token, updateUser } = useAuth();
   
   const [name, setName] = useState(user?.name || '');
-  const [role, setRole] = useState(user?.role || '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !role) return;
+    if (!name) return;
     
     setSaving(true);
     setMessage(null);
@@ -23,7 +23,7 @@ export default function Profile() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name, role })
+        body: JSON.stringify({ name })
       });
       
       if (res.ok) {
@@ -43,24 +43,22 @@ export default function Profile() {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-6 min-h-0 bg-[#0f1115]">
+    <div className="flex-1 flex flex-col p-6 min-h-0 bg-page-bg">
       <div className="flex justify-between items-start mb-6 shrink-0">
         <div>
-          <h1 className="text-sm font-semibold text-white tracking-tight uppercase">User Profile</h1>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manage your personal information</p>
+          <h1 className="text-sm font-semibold text-strong tracking-tight uppercase">User Profile</h1>
+          <p className="text-[10px] text-subtle uppercase tracking-widest mt-1">Manage your personal information</p>
         </div>
       </div>
       
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl bg-[#1a1d23] border border-[#2d3139] rounded-lg p-6">
+        <div className="max-w-2xl bg-surface border border-border-subtle rounded-lg p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex items-center space-x-4 pb-6 border-b border-[#2d3139]">
-              <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-2xl font-bold text-white shrink-0">
-                {user?.name.charAt(0).toUpperCase()}
-              </div>
+            <div className="flex items-center space-x-4 pb-6 border-b border-border-subtle">
+              <UserAvatar user={user} className="w-16 h-16 text-2xl" showTooltip={false} />
               <div>
-                <h2 className="text-lg font-bold text-white">{user?.name}</h2>
-                <p className="text-sm text-slate-400">{user?.email}</p>
+                <h2 className="text-lg font-bold text-strong">{user?.name}</h2>
+                <p className="text-sm text-muted">{user?.email}</p>
               </div>
             </div>
 
@@ -71,47 +69,44 @@ export default function Profile() {
             )}
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Full Name</label>
+              <label className="text-[10px] font-bold text-subtle uppercase tracking-widest block mb-2">Full Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full bg-[#0a0c10] border border-[#2d3139] rounded px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-surface-dim border border-border-subtle rounded px-4 py-2 text-strong focus:outline-none focus:border-blue-500 transition-colors"
                 required
               />
             </div>
             
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Role</label>
-              <select
-                value={role}
-                onChange={e => setRole(e.target.value)}
-                disabled={user?.role !== 'admin'}
-                className="w-full bg-[#0a0c10] border border-[#2d3139] rounded px-4 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50"
-              >
-                <option value="developer">Developer</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
-              <p className="text-[10px] text-slate-500 mt-2">Only administrators can change account roles.</p>
+              <label className="text-[10px] font-bold text-subtle uppercase tracking-widest block mb-2">Role</label>
+              <input
+                type="text"
+                value={user?.role?.toUpperCase() || ''}
+                disabled
+                readOnly
+                className="w-full bg-surface-dim border border-border-subtle rounded px-4 py-2 text-strong focus:outline-none focus:border-blue-500 transition-colors opacity-70 cursor-not-allowed"
+              />
+              <p className="text-[10px] text-subtle mt-2">Roles cannot be changed by the user.</p>
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Email Address</label>
+              <label className="text-[10px] font-bold text-subtle uppercase tracking-widest block mb-2">Email Address</label>
               <input
                 type="text"
                 value={user?.email || ''}
                 readOnly
-                className="w-full bg-[#0a0c10]/50 border border-[#2d3139] rounded px-4 py-2 text-slate-500 cursor-not-allowed"
+                className="w-full bg-surface-dim/50 border border-border-subtle rounded px-4 py-2 text-subtle cursor-not-allowed"
               />
-              <p className="text-[10px] text-slate-500 mt-2">Email addresses cannot be changed.</p>
+              <p className="text-[10px] text-subtle mt-2">Email addresses cannot be changed.</p>
             </div>
 
-            <div className="pt-4 border-t border-[#2d3139] flex justify-end">
+            <div className="pt-4 border-t border-border-subtle flex justify-end">
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold uppercase text-[10px] tracking-widest transition-colors disabled:opacity-50"
+                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-strong px-6 py-2 rounded font-bold uppercase text-[10px] tracking-widest transition-colors disabled:opacity-50"
               >
                 {saving ? (
                   <span>Saving...</span>

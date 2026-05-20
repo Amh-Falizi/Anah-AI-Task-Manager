@@ -138,7 +138,7 @@ export default function CalendarView() {
   if (loading) return <div className="p-8">Loading calendar...</div>;
 
   return (
-    <div className="flex-1 flex flex-col p-6 min-h-0 bg-[#0f1115]">
+    <div className="flex-1 flex flex-col p-6 min-h-0 bg-page-bg">
       {/* Header */}
       <header className="flex justify-between items-center mb-6 shrink-0">
         <div className="flex items-center space-x-4">
@@ -146,31 +146,31 @@ export default function CalendarView() {
             <CalendarIcon className="text-blue-500" size={24} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Calendar</h1>
-            <p className="text-xs text-slate-400 uppercase tracking-widest mt-1">Schedule and manage deadlines</p>
+            <h1 className="text-2xl font-bold text-strong tracking-tight">Calendar</h1>
+            <p className="text-xs text-muted uppercase tracking-widest mt-1">Schedule and manage deadlines</p>
           </div>
         </div>
 
         <div className="flex items-center space-x-4">
           <button 
             onClick={today}
-            className="px-4 py-2 bg-[#1a1d23] border border-[#2d3139] hover:bg-[#2d3139] text-white text-xs font-bold rounded transition-colors uppercase tracking-widest"
+            className="px-4 py-2 bg-surface border border-border-subtle hover:bg-surface-accent text-strong text-xs font-bold rounded transition-colors uppercase tracking-widest"
           >
             Today
           </button>
-          <div className="flex items-center bg-[#1a1d23] border border-[#2d3139] rounded">
+          <div className="flex items-center bg-surface border border-border-subtle rounded">
             <button 
               onClick={prevMonth}
-              className="p-2 hover:bg-[#2d3139] text-slate-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-surface-accent text-muted hover:text-strong transition-colors"
             >
               <ChevronLeft size={20} />
             </button>
-            <div className="px-4 py-2 font-bold text-white w-40 text-center uppercase tracking-widest text-sm">
+            <div className="px-4 py-2 font-bold text-strong w-40 text-center uppercase tracking-widest text-sm">
               {format(currentDate, 'MMMM yyyy')}
             </div>
             <button 
               onClick={nextMonth}
-              className="p-2 hover:bg-[#2d3139] text-slate-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-surface-accent text-muted hover:text-strong transition-colors"
             >
               <ChevronRight size={20} />
             </button>
@@ -179,11 +179,11 @@ export default function CalendarView() {
       </header>
 
       {/* Calendar Grid */}
-      <div className="flex-1 bg-[#1a1d23] border border-[#2d3139] rounded-lg flex flex-col overflow-hidden shadow-2xl">
+      <div className="flex-1 bg-surface border border-border-subtle rounded-lg flex flex-col overflow-hidden shadow-2xl">
         {/* Days of week */}
-        <div className="grid grid-cols-7 border-b border-[#2d3139] shrink-0 bg-[#0a0c10]">
+        <div className="grid grid-cols-7 border-b border-border-subtle shrink-0 bg-surface-dim">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-            <div key={day} className="px-4 py-3 text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            <div key={day} className="px-4 py-3 text-center text-[10px] font-bold text-subtle uppercase tracking-widest">
               {day}
             </div>
           ))}
@@ -202,11 +202,11 @@ export default function CalendarView() {
               <div 
                 key={day.toISOString()}
                 className={cn(
-                  "border-[#2d3139] py-2 px-2 flex flex-col gap-2 transition-colors",
+                  "border-border-subtle py-2 px-2 flex flex-col gap-2 transition-colors",
                   idx > 6 && "border-t",
                   idx % 7 !== 6 && "border-r",
-                  !isCurrentMonth ? "bg-[#0a0c10]/50" : "bg-[#1a1d23]",
-                  "hover:bg-[#2d3139]/30"
+                  !isCurrentMonth ? "bg-surface-dim/50" : "bg-surface",
+                  "hover:bg-surface-accent/30"
                 )}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, day)}
@@ -215,15 +215,15 @@ export default function CalendarView() {
                    <div className={cn(
                      "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
                      isToday 
-                       ? "bg-blue-600 text-white" 
+                       ? "bg-blue-600 text-strong" 
                        : isCurrentMonth 
-                         ? "text-slate-300" 
+                         ? "text-primary" 
                          : "text-slate-600"
                    )}>
                      {format(day, 'd')}
                    </div>
                    {dayTasks.length > 0 && (
-                     <div className="text-[10px] text-slate-500 font-medium">
+                     <div className="text-[10px] text-subtle font-medium">
                        {dayTasks.length} task{dayTasks.length > 1 ? 's' : ''}
                      </div>
                    )}
@@ -240,7 +240,7 @@ export default function CalendarView() {
                           onClick={() => setSelectedTask(task)}
                           className={cn(
                             "text-xs px-2 py-1.5 rounded cursor-pointer truncate transition-colors border-l-[3px]",
-                            isDone ? "bg-[#0a0c10] text-slate-500 border-l-slate-700 opacity-60" : "bg-[#2d3139] text-white hover:bg-slate-700",
+                            isDone ? "bg-surface-dim text-subtle border-l-slate-700 opacity-60" : "bg-surface-accent text-strong hover:bg-slate-700",
                             !isDone && task.priority === 'urgent' && "border-l-red-500",
                             !isDone && task.priority === 'high' && "border-l-amber-500",
                             !isDone && task.priority === 'medium' && "border-l-blue-500",
@@ -252,7 +252,7 @@ export default function CalendarView() {
                             {isDone ? (
                                <CheckCircle2 size={12} className="shrink-0" />
                             ) : (
-                               <Clock size={12} className="shrink-0 text-slate-400" />
+                               <Clock size={12} className="shrink-0 text-muted" />
                             )}
                             <span className={cn("truncate", isDone && "line-through")}>{task.title}</span>
                           </div>

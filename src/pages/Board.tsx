@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { useSearchParams, Link } from 'react-router';
 import TaskDiagram from '../components/TaskDiagram';
+import Markdown from 'react-markdown';
+import UserAvatar from '../components/UserAvatar';
 
 const COLUMNS = [
   { id: 'todo', title: 'To Do' },
@@ -210,7 +212,7 @@ export default function Board() {
     }
 
     // Optimistic update
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: targetStatus, orderIndex: newOrderIndex } : t));
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: targetStatus as any, orderIndex: newOrderIndex } : t));
     
     try {
       await fetch(`/api/tasks/${taskId}`, {
@@ -317,40 +319,46 @@ export default function Board() {
     fetchData();
   };
 
-  if (loading) return <div className="p-8 text-slate-300">Loading board...</div>;
+  if (loading) return <div className="p-8 text-primary">Loading board...</div>;
 
   return (
-    <div className="flex-1 flex flex-col p-6 min-h-0 bg-[#0f1115]">
+    <div className="flex-1 flex flex-col p-6 min-h-0 bg-page-bg">
       <div className="flex justify-between items-start lg:items-center mb-6 shrink-0 flex-col lg:flex-row gap-4">
         <div>
           {project ? (
             <>
-              <h1 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-strong tracking-tight flex items-center gap-2">
                 <FolderKanban size={20} className="text-blue-500" />
-                {project.name} <span className="text-sm font-normal text-slate-500">Board</span>
+                {project.name} <span className="text-sm font-normal text-subtle">Board</span>
               </h1>
-              <p className="text-xs text-slate-500 mt-1">{project.description || 'Project Task Board'}</p>
+              <div className="text-xs text-subtle mt-1 prose prose-invert prose-sm line-clamp-1">
+                {project.description ? (
+                  <Markdown>{project.description}</Markdown>
+                ) : (
+                  'Project Task Board'
+                )}
+              </div>
             </>
           ) : (
             <>
-              <h1 className="text-sm font-semibold text-white tracking-tight uppercase">Task Board</h1>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Manage all tasks</p>
+              <h1 className="text-sm font-semibold text-strong tracking-tight uppercase">Task Board</h1>
+              <p className="text-[10px] text-subtle uppercase tracking-widest mt-1">Manage all tasks</p>
             </>
           )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center bg-[#1a1d23] border border-[#2d3139] rounded overflow-hidden">
+          <div className="flex items-center bg-surface border border-border-subtle rounded overflow-hidden">
             <button
                onClick={() => setViewMode('board')}
-               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'board' ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-white")}
+               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'board' ? "bg-blue-500/20 text-blue-400" : "text-subtle hover:text-strong")}
             >
                <FolderKanban size={14} />
                <span>Board</span>
             </button>
-            <div className="w-px h-4 bg-[#2d3139]" />
+            <div className="w-px h-4 bg-surface-accent" />
             <button
                onClick={() => setViewMode('diagram')}
-               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'diagram' ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-white")}
+               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'diagram' ? "bg-blue-500/20 text-blue-400" : "text-subtle hover:text-strong")}
             >
                <Workflow size={14} />
                <span>Graph</span>
@@ -360,71 +368,71 @@ export default function Board() {
             <>
               <button
                 onClick={() => setIsWorkloadModalOpen(true)}
-                className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] hover:border-blue-500/50 text-slate-300 hover:text-white px-3 py-1.5 rounded transition-all text-sm font-medium"
+                className="flex items-center space-x-2 bg-surface border border-border-subtle hover:border-blue-500/50 text-primary hover:text-strong px-3 py-1.5 rounded transition-all text-sm font-medium"
               >
                 <Activity size={14} className="text-blue-500" />
                 <span>Team Workload</span>
               </button>
               <button
                 onClick={() => setIsActivityModalOpen(true)}
-                className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] hover:border-blue-500/50 text-slate-300 hover:text-white px-3 py-1.5 rounded transition-all text-sm font-medium"
+                className="flex items-center space-x-2 bg-surface border border-border-subtle hover:border-blue-500/50 text-primary hover:text-strong px-3 py-1.5 rounded transition-all text-sm font-medium"
               >
                 <Clock size={14} className="text-blue-500" />
                 <span>Project Activity</span>
               </button>
             </>
           )}
-          <div className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] rounded px-3 py-1.5 text-[10px]">
-            <Search size={14} className="text-slate-500 shrink-0" />
+          <div className="flex items-center space-x-2 bg-surface border border-border-subtle rounded px-3 py-1.5 text-[10px]">
+            <Search size={14} className="text-subtle shrink-0" />
             <input 
               type="text" 
               placeholder="SEARCH TASKS..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent text-white uppercase font-bold tracking-widest outline-none w-32 md:w-48 placeholder-slate-600"
+              className="bg-transparent text-strong uppercase font-bold tracking-widest outline-none w-32 md:w-48 placeholder-slate-600"
             />
           </div>
-          <div className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] rounded px-3 py-1.5 text-[10px] flex-wrap">
-            <Filter size={12} className="text-slate-500 shrink-0" />
+          <div className="flex items-center space-x-2 bg-surface border border-border-subtle rounded px-3 py-1.5 text-[10px] flex-wrap">
+            <Filter size={12} className="text-subtle shrink-0" />
             <select 
-              className="bg-transparent text-white uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
+              className="bg-transparent text-strong uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
               value={filterAssignee}
               onChange={(e) => setFilterAssignee(e.target.value)}
             >
-              <option value="all" className="bg-[#1a1d23]">ALL USERS</option>
-              {user && <option value={user.id} className="bg-[#1a1d23]">ASSIGNED TO ME</option>}
-              {users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id} className="bg-[#1a1d23]">{u.name}</option>)}
+              <option value="all" className="bg-surface">ALL USERS</option>
+              {user && <option value={user.id} className="bg-surface">ASSIGNED TO ME</option>}
+              {users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id} className="bg-surface">{u.name}</option>)}
             </select>
             <span className="text-[#2d3139] px-1">|</span>
             <select 
-              className="bg-transparent text-white uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
+              className="bg-transparent text-strong uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
               value={filterPriority}
               onChange={(e) => setFilterPriority(e.target.value)}
             >
-              <option value="all" className="bg-[#1a1d23]">ALL PRIORITIES</option>
-              <option value="urgent" className="bg-[#1a1d23]">URGENT</option>
-              <option value="high" className="bg-[#1a1d23]">HIGH</option>
-              <option value="medium" className="bg-[#1a1d23]">MEDIUM</option>
-              <option value="low" className="bg-[#1a1d23]">LOW</option>
+              <option value="all" className="bg-surface">ALL PRIORITIES</option>
+              <option value="urgent" className="bg-surface">URGENT</option>
+              <option value="high" className="bg-surface">HIGH</option>
+              <option value="medium" className="bg-surface">MEDIUM</option>
+              <option value="low" className="bg-surface">LOW</option>
             </select>
             <span className="text-[#2d3139] px-1">|</span>
             <select 
-              className="bg-transparent text-white uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
+              className="bg-transparent text-strong uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
-              <option value="all" className="bg-[#1a1d23]">ALL STATUSES</option>
-              <option value="todo" className="bg-[#1a1d23]">TO DO</option>
-              <option value="in_progress" className="bg-[#1a1d23]">IN PROGRESS</option>
-              <option value="review" className="bg-[#1a1d23]">REVIEW</option>
-              <option value="done" className="bg-[#1a1d23]">DONE</option>
+              <option value="all" className="bg-surface">ALL STATUSES</option>
+              <option value="todo" className="bg-surface">TO DO</option>
+              <option value="in_progress" className="bg-surface">IN PROGRESS</option>
+              <option value="review" className="bg-surface">REVIEW</option>
+              <option value="done" className="bg-surface">DONE</option>
             </select>
           </div>
-          <div className="flex items-center space-x-2 bg-[#1a1d23] border border-[#2d3139] rounded px-3 py-1.5 text-[10px]">
-             <ArrowUpDown size={12} className="text-slate-500" />
-             <span className="text-slate-500 font-bold uppercase tracking-widest border-r border-[#2d3139] pr-2">SORT BY</span>
+          <div className="flex items-center space-x-2 bg-surface border border-border-subtle rounded px-3 py-1.5 text-[10px]">
+             <ArrowUpDown size={12} className="text-subtle" />
+             <span className="text-subtle font-bold uppercase tracking-widest border-r border-border-subtle pr-2">SORT BY</span>
              <select 
-               className="bg-transparent text-white uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none pl-1"
+               className="bg-transparent text-strong uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none pl-1"
                value={`${sortBy}-${sortDir}`}
                onChange={(e) => {
                  const [by, dir] = e.target.value.split('-');
@@ -432,18 +440,18 @@ export default function Board() {
                  setSortDir(dir as SortDirection);
                }}
              >
-               <option value="custom-asc" className="bg-[#1a1d23]">Custom (Drag & Drop)</option>
-               <option value="priority-desc" className="bg-[#1a1d23]">Highest Priority</option>
-               <option value="priority-asc" className="bg-[#1a1d23]">Lowest Priority</option>
-               <option value="deadline-asc" className="bg-[#1a1d23]">Nearest Deadline</option>
-               <option value="deadline-desc" className="bg-[#1a1d23]">Furthest Deadline</option>
-               <option value="createdAt-desc" className="bg-[#1a1d23]">Newest First</option>
-               <option value="createdAt-asc" className="bg-[#1a1d23]">Oldest First</option>
+               <option value="custom-asc" className="bg-surface">Custom (Drag & Drop)</option>
+               <option value="priority-desc" className="bg-surface">Highest Priority</option>
+               <option value="priority-asc" className="bg-surface">Lowest Priority</option>
+               <option value="deadline-asc" className="bg-surface">Nearest Deadline</option>
+               <option value="deadline-desc" className="bg-surface">Furthest Deadline</option>
+               <option value="createdAt-desc" className="bg-surface">Newest First</option>
+               <option value="createdAt-asc" className="bg-surface">Oldest First</option>
              </select>
           </div>
           <button
             onClick={handleCreateTask}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded shadow-lg transition-colors flex items-center space-x-2"
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-strong text-xs font-bold rounded shadow-lg transition-colors flex items-center space-x-2"
           >
             <Plus size={14} />
             <span>NEW TASK</span>
@@ -459,7 +467,7 @@ export default function Board() {
           return (
             <div 
               key={column.id} 
-              className="w-80 flex-shrink-0 flex flex-col bg-[#1a1d23] border border-[#2d3139] rounded-lg transition-colors"
+              className="w-80 flex-shrink-0 flex flex-col bg-surface border border-border-subtle rounded-lg transition-colors"
               onDragOver={(e) => {
                 e.preventDefault();
                 e.currentTarget.classList.add('border-blue-500/50');
@@ -476,9 +484,9 @@ export default function Board() {
                 handleDropTask(taskId, column.id);
               }}
             >
-              <div className="px-4 py-3 flex justify-between items-center border-b border-[#2d3139]">
-                <h3 className="text-xs font-bold text-white uppercase tracking-widest">{column.title}</h3>
-                <span className="bg-[#2d3139] text-white px-2 py-0.5 rounded text-[10px] font-medium">
+              <div className="px-4 py-3 flex justify-between items-center border-b border-border-subtle">
+                <h3 className="text-xs font-bold text-strong uppercase tracking-widest">{column.title}</h3>
+                <span className="bg-surface-accent text-strong px-2 py-0.5 rounded text-[10px] font-medium">
                   {columnTasks.length}
                 </span>
               </div>
@@ -529,7 +537,7 @@ export default function Board() {
                       }}
                       onClick={() => handleEditTask(task)}
                       className={cn(
-                        "p-3 bg-[#0a0c10] border border-[#2d3139] border-l-[3px] rounded cursor-pointer hover:border-r-blue-500 hover:border-y-blue-500 hover:border-b-blue-500 hover:border-t-blue-500 transition-colors group flex flex-col",
+                        "p-3 bg-surface-dim border border-border-subtle border-l-[3px] rounded cursor-pointer hover:border-r-blue-500 hover:border-y-blue-500 hover:border-b-blue-500 hover:border-t-blue-500 transition-colors group flex flex-col",
                         task.priority === 'urgent' ? 'border-l-red-500' :
                         task.priority === 'high' ? 'border-l-amber-500' :
                         task.priority === 'medium' ? 'border-l-blue-500' :
@@ -560,7 +568,7 @@ export default function Board() {
                             task.priority === 'urgent' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
                             task.priority === 'high' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                             task.priority === 'medium' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                            'bg-slate-800 text-slate-400 border border-slate-700'
+                            'bg-slate-800 text-muted border border-slate-700'
                           )}>
                             {task.priority === 'urgent' && <AlertCircle size={10} />}
                             {task.priority === 'high' && <ChevronUp size={10} />}
@@ -571,14 +579,14 @@ export default function Board() {
                         </div>
                         <div className="flex items-center space-x-1 opacity-0 lg:opacity-50 lg:group-hover:opacity-100 transition-opacity">
                           <button 
-                            className="text-slate-500 hover:text-blue-400 p-1 rounded hover:bg-blue-500/10"
+                            className="text-subtle hover:text-blue-400 p-1 rounded hover:bg-blue-500/10"
                             title="Add Subtask"
                             onClick={(e) => handleCreateSubtask(task.id, e)}
                           >
                             <Plus size={14} />
                           </button>
                           <button 
-                            className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10"
+                            className="text-subtle hover:text-red-400 p-1 rounded hover:bg-red-500/10"
                             onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
                           >
                             <MoreVertical size={14} />
@@ -588,7 +596,7 @@ export default function Board() {
 
                       <h4 className="text-xs font-bold text-slate-100 mb-1 leading-snug">{task.title}</h4>
                       {task.branchName && (
-                        <div className="text-[10px] text-slate-500 font-mono italic mb-2 truncate">{task.branchName}</div>
+                        <div className="text-[10px] text-subtle font-mono italic mb-2 truncate">{task.branchName}</div>
                       )}
                       
                       {(() => {
@@ -619,11 +627,11 @@ export default function Board() {
 
                       {subtasks.length > 0 && (
                         <div className="mb-2 mt-1">
-                          <div className="flex items-center justify-between text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+                          <div className="flex items-center justify-between text-[9px] font-bold text-subtle uppercase tracking-widest mb-1">
                             <span>Subtasks</span>
                             <span>{completedSubtasks}/{subtasks.length}</span>
                           </div>
-                          <div className="w-full h-1 bg-[#2d3139] rounded-full overflow-hidden">
+                          <div className="w-full h-1 bg-surface-accent rounded-full overflow-hidden">
                             <div 
                               className={cn(
                                 "h-full transition-all duration-300",
@@ -632,7 +640,7 @@ export default function Board() {
                               style={{ width: `${(completedSubtasks / subtasks.length) * 100}%` }}
                             />
                           </div>
-                          <div className="flex flex-col mt-2 space-y-1 pl-1 border-l-2 border-[#2d3139]/50 ml-1">
+                          <div className="flex flex-col mt-2 space-y-1 pl-1 border-l-2 border-border-subtle/50 ml-1">
                             {subtasks.map(st => (
                               <div 
                                 key={st.id} 
@@ -676,14 +684,14 @@ export default function Board() {
                                     handleDropTask(draggedTaskId, column.id, st.id, position);
                                   }
                                 }}
-                                className="flex justify-between items-center bg-[#1a1d23] p-1.5 rounded cursor-pointer hover:bg-white/5 border border-transparent hover:border-[#2d3139]"
+                                className="flex justify-between items-center bg-surface p-1.5 rounded cursor-pointer hover:bg-white/5 border border-transparent hover:border-border-subtle"
                                 onClick={(e) => { e.stopPropagation(); handleEditTask(st); }}
                               >
                                 <div className="flex items-center space-x-1.5 overflow-hidden">
                                   <CornerDownRight size={10} className="text-[#2d3139] shrink-0" />
                                   <span className={cn(
                                     "text-[10px] truncate max-w-[150px]", 
-                                    st.status === 'done' ? "line-through text-slate-600" : "text-slate-400"
+                                    st.status === 'done' ? "line-through text-slate-600" : "text-muted"
                                   )}>
                                     {st.title}
                                   </span>
@@ -701,16 +709,14 @@ export default function Board() {
                         </div>
                       )}
                       
-                      <div className="mt-auto pt-2 flex items-center justify-between text-[10px] text-slate-400 border-t border-[#2d3139]">
+                      <div className="mt-auto pt-2 flex items-center justify-between text-[10px] text-muted border-t border-border-subtle">
                         <div className="flex items-center space-x-1 font-mono">
                           <Calendar size={12} />
                           <span>{format(new Date(task.deadline), 'MMM dd').toUpperCase()}</span>
                         </div>
                         {assignee && (
                           <div className="flex items-center space-x-2" title={assignee.name}>
-                            <div className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-[9px]">
-                              {assignee.name.charAt(0).toUpperCase()}
-                            </div>
+                            <UserAvatar user={assignee} className="w-5 h-5 text-[9px] rounded" showTooltip={false} />
                           </div>
                         )}
                       </div>
@@ -723,7 +729,7 @@ export default function Board() {
         })}
         </div>
       ) : (
-        <div className="flex-1 border border-[#2d3139] rounded overflow-hidden">
+        <div className="flex-1 border border-border-subtle rounded overflow-hidden">
           <TaskDiagram tasks={filteredTasks} />
         </div>
       )}
@@ -744,15 +750,15 @@ export default function Board() {
       )}
 
       {selectedTaskIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#1a1d23] border border-[#2d3139] shadow-2xl rounded-full px-6 py-3 flex items-center space-x-6 text-sm">
-          <div className="text-white font-bold">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface border border-border-subtle shadow-2xl rounded-full px-6 py-3 flex items-center space-x-6 text-sm">
+          <div className="text-strong font-bold">
             {selectedTaskIds.size} task{selectedTaskIds.size > 1 ? 's' : ''} selected
           </div>
-          <div className="w-px h-6 bg-[#2d3139]" />
+          <div className="w-px h-6 bg-surface-accent" />
           
           <div className="flex items-center space-x-3">
              <select 
-               className="bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-1.5 text-xs text-white uppercase font-medium hover:border-[#3d424e] focus:outline-none cursor-pointer transition-colors"
+               className="bg-surface-dim border border-border-subtle rounded px-3 py-1.5 text-xs text-strong uppercase font-medium hover:border-border-strong focus:outline-none cursor-pointer transition-colors"
                onChange={(e) => handleBulkUpdate({ status: e.target.value as any })}
                value=""
              >
@@ -764,7 +770,7 @@ export default function Board() {
              </select>
 
              <select 
-               className="bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-1.5 text-xs text-white uppercase font-medium hover:border-[#3d424e] focus:outline-none cursor-pointer transition-colors"
+               className="bg-surface-dim border border-border-subtle rounded px-3 py-1.5 text-xs text-strong uppercase font-medium hover:border-border-strong focus:outline-none cursor-pointer transition-colors"
                onChange={(e) => handleBulkUpdate({ priority: e.target.value as any })}
                value=""
              >
@@ -776,7 +782,7 @@ export default function Board() {
              </select>
 
              <select 
-               className="bg-[#0a0c10] border border-[#2d3139] rounded px-3 py-1.5 text-xs text-white uppercase font-medium hover:border-[#3d424e] focus:outline-none cursor-pointer transition-colors"
+               className="bg-surface-dim border border-border-subtle rounded px-3 py-1.5 text-xs text-strong uppercase font-medium hover:border-border-strong focus:outline-none cursor-pointer transition-colors"
                onChange={(e) => handleBulkUpdate({ assigneeId: e.target.value || null })}
                value=""
              >
@@ -786,10 +792,10 @@ export default function Board() {
              </select>
           </div>
 
-          <div className="w-px h-6 bg-[#2d3139]" />
+          <div className="w-px h-6 bg-surface-accent" />
           
           <button 
-            className="text-slate-400 hover:text-white hover:bg-white/10 p-1.5 rounded-full transition-colors"
+            className="text-muted hover:text-strong hover:bg-white/10 p-1.5 rounded-full transition-colors"
             onClick={() => setSelectedTaskIds(new Set())}
             title="Clear Selection"
           >
