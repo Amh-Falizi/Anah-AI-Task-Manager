@@ -69,7 +69,7 @@ export default function ProjectActivityModal({ projectId, projectName, users, on
                      <div className="flex items-center justify-center w-10 h-10 rounded-full border border-border-subtle bg-surface shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-lg relative z-10">
                         {getActionIcon(a.action)}
                      </div>
-                     <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-lg border border-border-subtle bg-surface shadow-md hover:border-slate-600 transition-colors">
+                     <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-lg border border-border-subtle bg-surface shadow-md hover:border-border-strong transition-colors">
                        <div className="flex items-center justify-between mb-2">
                           <div className="font-bold text-strong text-sm">{author ? author.name : 'Unknown User'}</div>
                           <time className="font-mono text-[10px] text-muted bg-surface-dim px-2 py-0.5 rounded border border-border-subtle">
@@ -77,7 +77,7 @@ export default function ProjectActivityModal({ projectId, projectName, users, on
                           </time>
                        </div>
                        <div className="text-xs text-primary">
-                         {a.action} on <span className="font-bold text-strong bg-white/10 px-1 rounded mx-1">{a.taskTitle}</span>
+                         {a.action} on <span className="font-bold text-strong bg-surface-accent px-1 rounded mx-1">{a.taskTitle}</span>
                        </div>
                      </div>
                   </div>
@@ -86,7 +86,7 @@ export default function ProjectActivityModal({ projectId, projectName, users, on
             </div>
            ) : (
              <div className="flex flex-col items-center justify-center h-64 text-center">
-                <Activity size={32} className="text-slate-600 mb-3" />
+                <Activity size={32} className="text-subtle mb-3" />
                 <p className="text-muted font-bold uppercase tracking-widest text-sm">No Activity Yet</p>
                 <p className="text-subtle text-xs mt-1">Actions taken on this project will appear here.</p>
              </div>

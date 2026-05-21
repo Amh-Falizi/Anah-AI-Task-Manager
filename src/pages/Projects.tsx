@@ -67,7 +67,7 @@ export default function Projects() {
           <div className="text-subtle text-sm">Loading projects...</div>
         ) : projects.length === 0 ? (
           <div className="text-center text-subtle py-20 bg-surface rounded-xl border border-border-subtle border-dashed">
-            <FolderKanban size={48} className="mx-auto mb-4 text-slate-600" />
+            <FolderKanban size={48} className="mx-auto mb-4 text-border-strong" />
             <h3 className="text-lg font-medium text-primary mb-2">No projects yet</h3>
             <p className="text-sm">Create a new project to start organizing tasks.</p>
           </div>
@@ -270,7 +270,7 @@ function CreateProjectModal({ onClose, onSuccess }: { onClose: () => void, onSuc
                   {description ? (
                     <Markdown>{description}</Markdown>
                   ) : (
-                    <span className="text-slate-600 italic">No description provided.</span>
+                    <span className="text-subtle italic">No description provided.</span>
                   )}
                 </div>
               )}

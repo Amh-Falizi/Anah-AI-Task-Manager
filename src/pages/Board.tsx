@@ -4,7 +4,7 @@ import { Task, User, Project } from '../types';
 import TaskModal from '../components/TaskModal';
 import WorkloadModal from '../components/WorkloadModal';
 import ProjectActivityModal from '../components/ProjectActivityModal';
-import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity, CheckCircle2, Workflow, Clock } from 'lucide-react';
+import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity, CheckCircle2, Workflow, Clock, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { useSearchParams, Link } from 'react-router';
@@ -44,6 +44,7 @@ export default function Board() {
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [sortBy, setSortBy] = useState<SortOption>('custom');
@@ -53,6 +54,7 @@ export default function Board() {
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -150,10 +152,19 @@ export default function Board() {
   const handleCreateTask = () => {
     setEditingTask(null);
     setSelectedParentId(null);
+    setSelectedStatus(null);
+    setIsModalOpen(true);
+  };
+
+  const handleCreateTaskInColumn = (status: string) => {
+    setEditingTask(null);
+    setSelectedParentId(null);
+    setSelectedStatus(status);
     setIsModalOpen(true);
   };
 
   const handleDropTask = async (taskId: string, targetStatus: string, hoverTaskId?: string, dropPosition?: 'before' | 'after') => {
+    setDraggingTaskId(null);
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
@@ -389,7 +400,7 @@ export default function Board() {
               placeholder="SEARCH TASKS..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent text-strong uppercase font-bold tracking-widest outline-none w-32 md:w-48 placeholder-slate-600"
+              className="bg-transparent text-strong uppercase font-bold tracking-widest outline-none w-32 md:w-48 placeholder-muted"
             />
           </div>
           <div className="flex items-center space-x-2 bg-surface border border-border-subtle rounded px-3 py-1.5 text-[10px] flex-wrap">
@@ -403,7 +414,7 @@ export default function Board() {
               {user && <option value={user.id} className="bg-surface">ASSIGNED TO ME</option>}
               {users.filter(u => u.id !== user?.id).map(u => <option key={u.id} value={u.id} className="bg-surface">{u.name}</option>)}
             </select>
-            <span className="text-[#2d3139] px-1">|</span>
+            <span className="text-border-strong px-1">|</span>
             <select 
               className="bg-transparent text-strong uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
               value={filterPriority}
@@ -415,7 +426,7 @@ export default function Board() {
               <option value="medium" className="bg-surface">MEDIUM</option>
               <option value="low" className="bg-surface">LOW</option>
             </select>
-            <span className="text-[#2d3139] px-1">|</span>
+            <span className="text-border-strong px-1">|</span>
             <select 
               className="bg-transparent text-strong uppercase outline-none cursor-pointer font-bold tracking-wider appearance-none focus:outline-none"
               value={filterStatus}
@@ -470,6 +481,7 @@ export default function Board() {
               className="w-80 flex-shrink-0 flex flex-col bg-surface border border-border-subtle rounded-lg transition-colors"
               onDragOver={(e) => {
                 e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
                 e.currentTarget.classList.add('border-blue-500/50');
               }}
               onDragLeave={(e) => {
@@ -484,11 +496,20 @@ export default function Board() {
                 handleDropTask(taskId, column.id);
               }}
             >
-              <div className="px-4 py-3 flex justify-between items-center border-b border-border-subtle">
-                <h3 className="text-xs font-bold text-strong uppercase tracking-widest">{column.title}</h3>
-                <span className="bg-surface-accent text-strong px-2 py-0.5 rounded text-[10px] font-medium">
-                  {columnTasks.length}
-                </span>
+              <div className="px-4 py-3 flex justify-between items-center border-b border-border-subtle group">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xs font-bold text-strong uppercase tracking-widest">{column.title}</h3>
+                  <span className="bg-surface-accent text-strong px-2 py-0.5 rounded text-[10px] font-medium">
+                    {columnTasks.length}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleCreateTaskInColumn(column.id)}
+                  className="text-subtle hover:text-strong opacity-0 group-hover:opacity-100 transition-opacity"
+                  title={`Add Task to ${column.title}`}
+                >
+                  <Plus size={16} />
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -502,11 +523,15 @@ export default function Board() {
                       key={task.id}
                       draggable
                       onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move';
                         e.dataTransfer.setData('taskId', task.id);
+                        setTimeout(() => setDraggingTaskId(task.id), 0);
                       }}
+                      onDragEnd={() => setDraggingTaskId(null)}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'move';
                         const rect = e.currentTarget.getBoundingClientRect();
                         const y = e.clientY - rect.top;
                         if (y < rect.height / 2) {
@@ -538,6 +563,7 @@ export default function Board() {
                       onClick={() => handleEditTask(task)}
                       className={cn(
                         "p-3 bg-surface-dim border border-border-subtle border-l-[3px] rounded cursor-pointer hover:border-r-blue-500 hover:border-y-blue-500 hover:border-b-blue-500 hover:border-t-blue-500 transition-colors group flex flex-col",
+                        draggingTaskId === task.id && "opacity-40",
                         task.priority === 'urgent' ? 'border-l-red-500' :
                         task.priority === 'high' ? 'border-l-amber-500' :
                         task.priority === 'medium' ? 'border-l-blue-500' :
@@ -568,7 +594,7 @@ export default function Board() {
                             task.priority === 'urgent' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
                             task.priority === 'high' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                             task.priority === 'medium' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                            'bg-slate-800 text-muted border border-slate-700'
+                            'bg-surface-accent text-muted border border-border-strong'
                           )}>
                             {task.priority === 'urgent' && <AlertCircle size={10} />}
                             {task.priority === 'high' && <ChevronUp size={10} />}
@@ -577,24 +603,25 @@ export default function Board() {
                             <span>{task.priority}</span>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-1 opacity-0 lg:opacity-50 lg:group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
                             className="text-subtle hover:text-blue-400 p-1 rounded hover:bg-blue-500/10"
-                            title="Add Subtask"
-                            onClick={(e) => handleCreateSubtask(task.id, e)}
+                            title="Edit Task"
+                            onClick={(e) => { e.stopPropagation(); handleEditTask(task); }}
                           >
-                            <Plus size={14} />
+                            <Pencil size={14} />
                           </button>
                           <button 
                             className="text-subtle hover:text-red-400 p-1 rounded hover:bg-red-500/10"
+                            title="Delete Task"
                             onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
                           >
-                            <MoreVertical size={14} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
 
-                      <h4 className="text-xs font-bold text-slate-100 mb-1 leading-snug">{task.title}</h4>
+                      <h4 className="text-xs font-bold text-strong mb-1 leading-snug">{task.title}</h4>
                       {task.branchName && (
                         <div className="text-[10px] text-subtle font-mono italic mb-2 truncate">{task.branchName}</div>
                       )}
@@ -647,11 +674,15 @@ export default function Board() {
                                 draggable
                                 onDragStart={(e) => {
                                   e.stopPropagation();
+                                  e.dataTransfer.effectAllowed = 'move';
                                   e.dataTransfer.setData('taskId', st.id);
+                                  setTimeout(() => setDraggingTaskId(st.id), 0);
                                 }}
+                                onDragEnd={() => setDraggingTaskId(null)}
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
+                                  e.dataTransfer.dropEffect = 'move';
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const y = e.clientY - rect.top;
                                   if (y < rect.height / 2) {
@@ -684,14 +715,17 @@ export default function Board() {
                                     handleDropTask(draggedTaskId, column.id, st.id, position);
                                   }
                                 }}
-                                className="flex justify-between items-center bg-surface p-1.5 rounded cursor-pointer hover:bg-white/5 border border-transparent hover:border-border-subtle"
+                                className={cn(
+                                  "flex justify-between items-center bg-surface p-1.5 rounded cursor-pointer hover:bg-surface-dim border border-transparent hover:border-border-subtle",
+                                  draggingTaskId === st.id && "opacity-40"
+                                )}
                                 onClick={(e) => { e.stopPropagation(); handleEditTask(st); }}
                               >
                                 <div className="flex items-center space-x-1.5 overflow-hidden">
-                                  <CornerDownRight size={10} className="text-[#2d3139] shrink-0" />
+                                  <CornerDownRight size={10} className="text-border-strong shrink-0" />
                                   <span className={cn(
                                     "text-[10px] truncate max-w-[150px]", 
-                                    st.status === 'done' ? "line-through text-slate-600" : "text-muted"
+                                    st.status === 'done' ? "line-through text-subtle opacity-50" : "text-muted"
                                   )}>
                                     {st.title}
                                   </span>
@@ -701,7 +735,7 @@ export default function Board() {
                                   st.status === 'done' ? 'bg-green-500' :
                                   st.status === 'in_progress' ? 'bg-blue-500' :
                                   st.status === 'review' ? 'bg-amber-500' :
-                                  'bg-slate-700'
+                                  'bg-surface-accent'
                                 )} />
                               </div>
                             ))}
@@ -730,7 +764,33 @@ export default function Board() {
         </div>
       ) : (
         <div className="flex-1 border border-border-subtle rounded overflow-hidden">
-          <TaskDiagram tasks={filteredTasks} />
+          <TaskDiagram 
+             tasks={filteredTasks} 
+             onConnectTask={(sourceId, targetId) => {
+               const targetTask = tasks.find(t => t.id === targetId);
+               if (targetTask) {
+                 const deps = targetTask.dependencies || [];
+                 if (!deps.includes(sourceId) && sourceId !== targetId) {
+                   handleUpdateTask(targetId, targetTask, { dependencies: [...deps, sourceId] });
+                 }
+               }
+             }}
+             onReverseConnection={(sourceId, targetId) => {
+               const targetTask = tasks.find(t => t.id === targetId);
+               const sourceTask = tasks.find(t => t.id === sourceId);
+               
+               if (targetTask && sourceTask) {
+                 const targetDeps = targetTask.dependencies || [];
+                 const newTargetDeps = targetDeps.filter(id => id !== sourceId);
+                 
+                 const sourceDeps = sourceTask.dependencies || [];
+                 const newSourceDeps = Array.from(new Set([...sourceDeps, targetId]));
+                 
+                 handleUpdateTask(targetId, targetTask, { dependencies: newTargetDeps });
+                 handleUpdateTask(sourceId, sourceTask, { dependencies: newSourceDeps });
+               }
+             }}
+          />
         </div>
       )}
 
@@ -795,7 +855,7 @@ export default function Board() {
           <div className="w-px h-6 bg-surface-accent" />
           
           <button 
-            className="text-muted hover:text-strong hover:bg-white/10 p-1.5 rounded-full transition-colors"
+            className="text-muted hover:text-strong hover:bg-surface-accent p-1.5 rounded-full transition-colors"
             onClick={() => setSelectedTaskIds(new Set())}
             title="Clear Selection"
           >

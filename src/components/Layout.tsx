@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, KanbanSquare, LogOut, Users, Calendar, FolderKanban, Sun, Moon, Shield } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, LogOut, Users, Calendar, FolderKanban, Sun, Moon, Shield, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 import NotificationsDropdown from './NotificationsDropdown';
@@ -13,6 +13,7 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -29,12 +30,25 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-page-bg text-primary font-sans overflow-hidden transition-colors duration-200">
       {/* Sidebar */}
-      <aside className="w-16 flex flex-col items-center py-6 border-r border-border-subtle bg-surface-dim transition-colors duration-200">
-        <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mb-8">
-          Σ
+      <aside 
+        className={cn(
+          "flex flex-col py-6 border-r border-border-subtle bg-surface-dim transition-all duration-300 relative",
+          isExpanded ? "w-64 px-4" : "w-16 items-center px-0"
+        )}
+      >
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="absolute -right-3 top-8 bg-surface-dim border border-border-subtle rounded-full p-1 text-subtle hover:text-strong z-10 shadow-sm"
+          title={isExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+        >
+          {isExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+        </button>
+
+        <div className={cn("bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mb-8 transition-all shrink-0", isExpanded ? "w-full h-12 text-xl" : "w-10 h-10")}>
+          {isExpanded ? "IRAJ" : "Σ"}
         </div>
 
-        <nav className="flex flex-col space-y-6">
+        <nav className="flex flex-col space-y-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
             const Icon = item.icon;
@@ -43,42 +57,57 @@ export default function Layout() {
                 key={item.name}
                 to={item.href}
                 className={cn(
-                  'p-2 rounded-md transition-colors cursor-pointer',
+                  'flex items-center rounded-md transition-colors cursor-pointer',
+                  isExpanded ? 'px-3 py-2.5 space-x-3' : 'p-2 justify-center',
                   isActive
-                    ? 'text-blue-500 bg-blue-500/10'
-                    : 'text-subtle hover:text-primary hover:bg-surface-accent/30'
+                    ? 'text-blue-500 bg-blue-500/10 font-medium'
+                    : 'text-subtle hover:text-strong hover:bg-surface-accent/30'
                 )}
-                title={item.name}
+                title={!isExpanded ? item.name : undefined}
               >
-                <Icon className="w-6 h-6" />
+                <Icon className="w-5 h-5 shrink-0" />
+                {isExpanded && <span className="text-sm truncate">{item.name}</span>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="mt-auto flex flex-col space-y-6 w-full">
-          <div className="flex flex-col items-center gap-4 w-full">
+        <div className="mt-auto flex flex-col space-y-4 w-full">
+          <div className={cn("flex w-full", isExpanded ? "flex-col space-y-2" : "flex-col items-center space-y-4")}>
              <button
                onClick={toggleTheme}
-               className="p-2 text-subtle hover:text-primary rounded-md transition-colors hover:bg-surface-accent/30"
-               title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+               className={cn("flex items-center text-subtle hover:text-strong rounded-md transition-colors hover:bg-surface-accent/30", isExpanded ? "px-3 py-2 space-x-3" : "p-2")}
+               title={!isExpanded ? `Switch to ${theme === 'light' ? 'dark' : 'light'} mode` : undefined}
              >
-               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+               {theme === 'light' ? <Moon size={20} className="shrink-0" /> : <Sun size={20} className="shrink-0" />}
+               {isExpanded && <span className="text-sm font-medium">{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>}
              </button>
-             <NotificationsDropdown />
+             
+             <div className={cn("flex", isExpanded ? "px-3 py-2" : "p-2")}>
+                <NotificationsDropdown expanded={isExpanded} />
+             </div>
+             
              <button
                onClick={logout}
-               className="p-2 text-subtle hover:text-red-500 rounded-md transition-colors hover:bg-surface-accent/30"
-               title="Logout"
+               className={cn("flex items-center text-subtle hover:text-red-500 rounded-md transition-colors hover:bg-surface-accent/30", isExpanded ? "px-3 py-2 space-x-3" : "p-2")}
+               title={!isExpanded ? "Logout" : undefined}
              >
-               <LogOut size={20} />
+               <LogOut size={20} className="shrink-0" />
+               {isExpanded && <span className="text-sm font-medium">Logout</span>}
              </button>
+             
              <Link 
                to="/profile"
-               className="hover:opacity-80 transition-opacity" 
-               title="Profile"
+               className={cn("hover:opacity-80 transition-opacity flex items-center mt-4", isExpanded ? "px-3 py-2 space-x-3 bg-surface border border-border-subtle rounded-lg" : "")} 
+               title={!isExpanded ? "Profile" : undefined}
              >
-               <UserAvatar user={user} showTooltip={false} />
+               <UserAvatar user={user} showTooltip={!isExpanded} />
+               {isExpanded && (
+                 <div className="flex flex-col min-w-0">
+                   <span className="text-sm font-bold text-strong truncate">{user?.name}</span>
+                   <span className="text-[10px] text-muted truncate">{user?.email}</span>
+                 </div>
+               )}
              </Link>
           </div>
         </div>

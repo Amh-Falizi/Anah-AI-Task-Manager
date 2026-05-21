@@ -18,9 +18,10 @@ interface TaskModalProps {
   onCreateSubtask?: (parentId: string) => void;
   parentId?: string | null;
   projectId?: string | null;
+  initialStatus?: "todo" | "in_progress" | "review" | "done" | string;
 }
 
-export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId }: TaskModalProps) {
+export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId, initialStatus }: TaskModalProps) {
   const { token, user } = useAuth();
   const isEdit = !!task;
   const [isViewMode, setIsViewMode] = useState(isEdit);
@@ -28,7 +29,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
   const [formData, setFormData] = useState<Partial<Task>>({
     title: task?.title || '',
     description: task?.description || '',
-    status: task?.status || 'todo',
+    status: task?.status || (initialStatus as "todo" | "in_progress" | "review" | "done") || 'todo',
     priority: task?.priority || 'medium',
     deadline: task?.deadline ? task.deadline.split('T')[0] : new Date().toISOString().split('T')[0],
     assigneeId: task?.assigneeId || '',
@@ -186,7 +187,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                   task.priority === 'urgent' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
                   task.priority === 'high' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                   task.priority === 'medium' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                  'bg-slate-800 text-muted border border-slate-700'
+                  'bg-surface-accent text-muted border border-border-strong'
                 )}>
                   {task.priority} Priority
                 </span>
@@ -269,7 +270,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                           {task.description ? (
                             <Markdown>{task.description}</Markdown>
                           ) : (
-                            <span className="italic text-slate-600">No description provided.</span>
+                            <span className="italic text-subtle">No description provided.</span>
                           )}
                         </div>
                       </div>
@@ -330,7 +331,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                                       className="focus:outline-none shrink-0 cursor-pointer"
                                       title={st.status === 'done' ? 'Mark as to do' : 'Mark as done'}
                                     >
-                                      <CheckCircle2 size={16} className={cn("transition-colors hover:text-green-400", st.status === 'done' ? 'text-green-500' : 'text-slate-600')} />
+                                      <CheckCircle2 size={16} className={cn("transition-colors hover:text-green-400", st.status === 'done' ? 'text-green-500' : 'text-border-strong')} />
                                     </button>
                                     <span className={cn("text-sm text-strong", st.status === 'done' && 'line-through text-subtle')}>{st.title}</span>
                                   </div>
@@ -419,7 +420,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                                             {editCommentContent ? (
                                               <Markdown>{editCommentContent}</Markdown>
                                             ) : (
-                                              <span className="text-slate-600 italic">Preview...</span>
+                                              <span className="text-subtle italic">Preview...</span>
                                             )}
                                           </div>
                                         )}
@@ -484,7 +485,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                                {newComment ? (
                                  <Markdown>{newComment}</Markdown>
                                ) : (
-                                 <span className="text-slate-600 italic">Preview...</span>
+                                 <span className="text-subtle italic">Preview...</span>
                                )}
                              </div>
                            )}
@@ -507,7 +508,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                       {loadingDetails ? (
                         <div className="flex items-center justify-center p-4"><Loader2 className="animate-spin text-subtle" size={20} /></div>
                       ) : activities.length > 0 ? (
-                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-700 before:to-transparent">
+                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border-strong before:to-transparent">
                           {activities.map(a => {
                             const author = users.find(u => u.id === a.userId);
                             return (
@@ -515,7 +516,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                                   <div className="flex items-center justify-center w-10 h-10 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-lg relative z-10 rounded-full">
                                     <UserAvatar user={author} showTooltip={false} className="w-10 h-10 text-base" />
                                   </div>
-                                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded border border-slate-700 bg-slate-800 shadow">
+                                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded border border-border-strong bg-surface-accent shadow">
                                    <div className="flex items-center justify-between mb-1">
                                       <div className="font-bold text-strong text-xs">{author ? author.name : 'Unknown User'}</div>
                                       <time className="font-mono text-[9px] text-muted">{format(new Date(a.createdAt), 'MMM d, h:mm a')}</time>
@@ -537,7 +538,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                       {loadingDetails ? (
                         <div className="flex items-center justify-center p-4"><Loader2 className="animate-spin text-subtle" size={20} /></div>
                       ) : projectActivities.length > 0 ? (
-                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-700 before:to-transparent">
+                        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border-strong before:to-transparent">
                           {projectActivities.map(a => {
                             const author = users.find(u => u.id === a.userId);
                             const taskRef = tasks?.find(t => t.id === a.taskId);
@@ -546,7 +547,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                                   <div className="flex items-center justify-center w-10 h-10 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-lg relative z-10 rounded-full">
                                     <UserAvatar user={author} showTooltip={false} className="w-10 h-10 text-base" />
                                   </div>
-                                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded border border-slate-700 bg-slate-800 shadow">
+                                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-3 rounded border border-border-strong bg-surface-accent shadow">
                                    <div className="flex items-center justify-between mb-1">
                                       <div className="font-bold text-strong text-xs">{author ? author.name : 'Unknown User'}</div>
                                       <time className="font-mono text-[9px] text-muted">{format(new Date(a.createdAt), 'MMM d, h:mm a')}</time>
@@ -763,7 +764,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                   {formData.description ? (
                     <Markdown>{formData.description}</Markdown>
                   ) : (
-                    <span className="text-slate-600 italic">No description provided.</span>
+                    <span className="text-subtle italic">No description provided.</span>
                   )}
                 </div>
               )}

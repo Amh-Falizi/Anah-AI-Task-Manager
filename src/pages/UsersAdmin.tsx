@@ -116,7 +116,7 @@ export default function UsersAdmin() {
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                       user.role === 'admin' ? 'bg-purple-500/10 text-purple-400' :
                       user.role === 'manager' ? 'bg-blue-500/10 text-blue-400' :
-                      'bg-slate-500/10 text-slate-400'
+                      'bg-surface-accent text-subtle'
                     }`}>
                       {user.role}
                     </span>

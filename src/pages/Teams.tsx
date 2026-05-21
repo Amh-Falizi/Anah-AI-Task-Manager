@@ -67,7 +67,7 @@ export default function Teams() {
                 <div 
                   key={team.id}
                   onClick={() => setSelectedTeam(team)}
-                  className={`bg-surface border ${selectedTeam?.id === team.id ? 'border-blue-500' : 'border-border-subtle hover:border-slate-500'} rounded-lg p-5 cursor-pointer transition-colors flex flex-col`}
+                  className={`bg-surface border ${selectedTeam?.id === team.id ? 'border-blue-500' : 'border-border-subtle hover:border-border-strong'} rounded-lg p-5 cursor-pointer transition-colors flex flex-col`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-strong font-medium truncate pr-2">{team.name}</h3>
@@ -201,7 +201,7 @@ function CreateTeamModal({ onClose, onSuccess }: { onClose: () => void, onSucces
                 {description ? (
                   <Markdown>{description}</Markdown>
                 ) : (
-                  <span className="text-slate-600 italic">No description provided.</span>
+                  <span className="text-subtle italic">No description provided.</span>
                 )}
               </div>
             )}
@@ -365,9 +365,9 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
             ) : members.length === 0 ? (
               <div className="p-6 text-sm text-subtle text-center">No members yet.</div>
             ) : (
-              <ul className="divide-y divide-[#2d3139]">
+              <ul className="divide-y divide-border-subtle">
                 {members.map(member => (
-                  <li key={member.id} className="flex justify-between items-center p-4 hover:bg-white/5 transition-colors">
+                  <li key={member.id} className="flex justify-between items-center p-4 hover:bg-surface-dim transition-colors">
                     <div className="flex items-center gap-3">
                       <UserAvatar user={member} showTooltip={false} />
                       <div>

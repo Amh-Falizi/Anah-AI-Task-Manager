@@ -1,21 +1,25 @@
-import React, { useMemo } from 'react';
-import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, MarkerType } from '@xyflow/react';
+import React, { useMemo, useCallback } from 'react';
+import { 
+  ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, MarkerType, 
+  Connection, addEdge, ReactFlowProvider, useReactFlow, Handle, Position
+} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import dagre from 'dagre';
 import { Task } from '../types';
 
 interface TaskDiagramProps {
   tasks: Task[];
+  onConnectTask?: (sourceId: string, targetId: string) => void;
+  onReverseConnection?: (sourceId: string, targetId: string) => void;
 }
 
-const nodeWidth = 200;
-const nodeHeight = 80;
+const nodeWidth = 220;
+const nodeHeight = 90;
 
 const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
-
-  dagreGraph.setGraph({ rankdir: direction });
+  dagreGraph.setGraph({ rankdir: direction, ranker: 'network-simplex', nodesep: 60, ranksep: 100 });
 
   nodes.forEach((node) => {
     dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
@@ -29,11 +33,11 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
 
   nodes.forEach((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    node.targetPosition = direction === 'TB' ? 'top' : 'left';
-    node.sourcePosition = direction === 'TB' ? 'bottom' : 'right';
+    // Determine the layout constraints depending on the direction
+    const isHorizontal = direction === 'LR';
+    node.targetPosition = isHorizontal ? 'left' : 'top';
+    node.sourcePosition = isHorizontal ? 'right' : 'bottom';
 
-    // We are shifting the dagre node position (anchor=center center) to the top left
-    // so it matches the React Flow node anchor point (top left).
     node.position = {
       x: nodeWithPosition.x - nodeWidth / 2,
       y: nodeWithPosition.y - nodeHeight / 2,
@@ -45,32 +49,68 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   return { nodes, edges };
 };
 
-export default function TaskDiagram({ tasks }: TaskDiagramProps) {
+// Custom Node Component to have handles visible
+const CustomTaskNode = ({ data, isConnectable, targetPosition, sourcePosition }: any) => {
+  return (
+    <div 
+      className="border rounded flex flex-col items-start p-3 h-full shadow-sm"
+      style={{ 
+        width: nodeWidth,
+        maxWidth: nodeWidth,
+        backgroundColor: data.bgColor, 
+        borderColor: data.borderColor,
+        color: data.textColor
+      }}
+    >
+      <Handle 
+        type="target" 
+        position={targetPosition} 
+        isConnectable={isConnectable} 
+        id="target" 
+        className="w-2 h-2 !bg-blue-400 !border-2 !border-surface"
+      />
+      <div className="w-full h-full flex flex-col justify-center">
+        <div className="text-xs font-bold truncate w-full">{data.task.title}</div>
+        <div className="text-[9px] uppercase tracking-wider mt-1 opacity-70 font-bold truncate w-full">
+          STATUS: {data.task.status.replace('_', ' ')}
+        </div>
+      </div>
+      <Handle 
+        type="source" 
+        position={sourcePosition} 
+        isConnectable={isConnectable} 
+        id="source" 
+        className="w-2 h-2 !bg-blue-400 !border-2 !border-surface"
+      />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  customTaskNode: CustomTaskNode
+};
+
+function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramProps) {
+  const { getIntersectingNodes } = useReactFlow();
+  
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+    
     const nodes = tasks.map((task) => {
-      let bgColor = '#1a1d23';
-      if (task.status === 'done') bgColor = '#0f1115';
+      let bgColor = task.status === 'done' ? 'var(--app-bg)' : 'var(--app-surface)';
+      let textColor = 'var(--app-text-strong)';
       
-      const borderColor = task.status === 'done' ? '#10b981' : task.status === 'in_progress' ? '#3b82f6' : task.status === 'review' ? '#eab308' : '#2d3139';
+      const borderColor = task.status === 'done' ? '#10b981' : task.status === 'in_progress' ? '#3b82f6' : task.status === 'review' ? '#eab308' : 'var(--app-border-strong)';
 
       return {
         id: task.id,
+        type: 'customTaskNode',
         data: {
-          label: (
-            <div className="flex flex-col text-left">
-               <div className="text-xs font-bold text-strong truncate">{task.title}</div>
-               <div className="text-[9px] uppercase tracking-wider text-muted font-bold mt-1 max-w-[170px] truncate">STATUS: {task.status.replace('_', ' ')}</div>
-            </div>
-          )
+          task,
+          bgColor,
+          borderColor,
+          textColor
         },
         position: { x: 0, y: 0 },
-        style: {
-          background: bgColor,
-          border: `1px solid ${borderColor}`,
-          borderRadius: '4px',
-          padding: '10px',
-          width: nodeWidth,
-        }
       };
     });
 
@@ -84,32 +124,32 @@ export default function TaskDiagram({ tasks }: TaskDiagramProps) {
             target: task.id,
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: '#475569',
+              color: 'var(--app-text-subtle)',
             },
             style: {
-              stroke: '#475569',
+              stroke: 'var(--app-text-subtle)',
               strokeWidth: 2,
+              cursor: 'pointer',
             },
             animated: task.status === 'in_progress'
           });
         });
       }
       
-      // Also draw subtask relationships
       if (task.parentId) {
          edges.push({
              id: `e-parent-${task.parentId}-${task.id}`,
              source: task.parentId,
              target: task.id,
              label: 'subtask',
-             labelStyle: { fill: '#64748b', fontSize: 10, fontWeight: 700 },
-             labelBgStyle: { fill: '#0a0c10' },
+             labelStyle: { fill: 'var(--app-text-muted)', fontSize: 10, fontWeight: 700 },
+             labelBgStyle: { fill: 'var(--app-surface-dim)' },
              markerEnd: {
                type: MarkerType.ArrowClosed,
-               color: '#64748b',
+               color: 'var(--app-text-muted)',
              },
              style: {
-               stroke: '#64748b',
+               stroke: 'var(--app-text-muted)',
                strokeWidth: 1,
                strokeDasharray: '3 3',
              }
@@ -120,23 +160,70 @@ export default function TaskDiagram({ tasks }: TaskDiagramProps) {
     return getLayoutedElements(nodes, edges);
   }, [tasks]);
 
-  const [nodes, _, onNodesChange] = useNodesState(initialNodes);
-  const [edges, __, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Update nodes and edges when tasks change
+  React.useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
+
+  const onConnect = useCallback((params: Connection) => {
+    if (params.source && params.target && onConnectTask) {
+      if (params.source !== params.target) {
+        onConnectTask(params.source, params.target); // add edge dependency target -> source or source -> target?
+        // if diagram connects dep -> task, then source is dep and target is task. target depends on source.
+      }
+    }
+  }, [onConnectTask]);
+
+  const onNodeDragStop = useCallback((_: React.MouseEvent, node: any) => {
+    const intersections = getIntersectingNodes(node).filter((n) => n.id !== node.id);
+    if (intersections.length > 0 && onConnectTask) {
+      const targetNode = intersections[0];
+      // When dragging node A onto node B, make node A depend on node B
+      onConnectTask(targetNode.id, node.id);
+    }
+  }, [getIntersectingNodes, onConnectTask]);
+
+  const onEdgeClick = useCallback((_: React.MouseEvent, edge: any) => {
+    if (onReverseConnection) {
+      if (edge.id.startsWith('e-parent-')) return; // ignore subtask edges
+      onReverseConnection(edge.source, edge.target);
+    }
+  }, [onReverseConnection]);
 
   return (
     <div className="w-full h-full bg-surface-dim">
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
+        onEdgeClick={onEdgeClick}
         fitView
-        colorMode="dark"
       >
-        <Background gap={12} size={1} />
+        <Background gap={12} size={1} color="var(--app-border-strong)" />
         <Controls />
-        <MiniMap zoomable pannable nodeColor="#2d3139" maskColor="rgba(10, 12, 16, 0.7)" />
+        <MiniMap 
+          zoomable 
+          pannable 
+          nodeColor="var(--app-surface-accent)" 
+          maskColor="var(--app-bg)" 
+        />
       </ReactFlow>
     </div>
+  );
+}
+
+export default function TaskDiagram(props: TaskDiagramProps) {
+  return (
+    <ReactFlowProvider>
+      <FlowLogic {...props} />
+    </ReactFlowProvider>
   );
 }

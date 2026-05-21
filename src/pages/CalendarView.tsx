@@ -218,7 +218,7 @@ export default function CalendarView() {
                        ? "bg-blue-600 text-strong" 
                        : isCurrentMonth 
                          ? "text-primary" 
-                         : "text-slate-600"
+                         : "text-subtle opacity-50"
                    )}>
                      {format(day, 'd')}
                    </div>
@@ -240,7 +240,7 @@ export default function CalendarView() {
                           onClick={() => setSelectedTask(task)}
                           className={cn(
                             "text-xs px-2 py-1.5 rounded cursor-pointer truncate transition-colors border-l-[3px]",
-                            isDone ? "bg-surface-dim text-subtle border-l-slate-700 opacity-60" : "bg-surface-accent text-strong hover:bg-slate-700",
+                            isDone ? "bg-surface-dim text-subtle border-l-border-strong opacity-60" : "bg-surface-accent text-strong hover:bg-surface-dim",
                             !isDone && task.priority === 'urgent' && "border-l-red-500",
                             !isDone && task.priority === 'high' && "border-l-amber-500",
                             !isDone && task.priority === 'medium' && "border-l-blue-500",

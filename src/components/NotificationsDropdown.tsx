@@ -16,7 +16,7 @@ interface Notification {
   timestamp: string;
 }
 
-export default function NotificationsDropdown() {
+export default function NotificationsDropdown({ expanded }: { expanded?: boolean }) {
   const { user, token } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -126,20 +126,38 @@ export default function NotificationsDropdown() {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={cn("relative", expanded ? "w-full" : "")} ref={dropdownRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 text-subtle hover:text-strong rounded-md transition-colors relative"
-        title="Notifications"
+        className={cn(
+          "text-subtle hover:text-strong rounded-md transition-colors relative flex items-center",
+          expanded ? "w-full px-1 py-0 space-x-3 hover:bg-transparent" : "p-2 hover:bg-surface-accent/30"
+        )}
+        title={!expanded ? "Notifications" : undefined}
       >
-        <Bell size={20} />
-        {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[#0a0c10]"></span>
+        <div className="relative">
+          <Bell size={20} className="shrink-0" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface-dim"></span>
+          )}
+        </div>
+        {expanded && (
+          <span className="text-sm font-medium flex-1 text-left flex items-center justify-between">
+            Notifications
+            {unreadCount > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {unreadCount}
+              </span>
+            )}
+          </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-0 left-full ml-4 w-80 bg-surface border border-border-subtle rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[400px]">
+        <div className={cn(
+          "absolute bottom-0 bg-surface border border-border-subtle rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[400px]",
+          expanded ? "left-full ml-4 w-80 mb-8" : "left-full ml-4 w-80"
+        )}>
           <div className="p-3 border-b border-border-subtle flex items-center justify-between bg-surface-dim">
             <h3 className="text-strong font-bold text-sm tracking-tight">Notifications</h3>
             {unreadCount > 0 && (

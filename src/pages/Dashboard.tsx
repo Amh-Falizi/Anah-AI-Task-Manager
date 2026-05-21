@@ -189,14 +189,14 @@ export default function Dashboard() {
             <div className="px-4 py-3 border-b border-border-subtle flex items-center justify-between">
               <h2 className="text-xs font-bold text-strong uppercase tracking-widest">My Assigned Tasks</h2>
             </div>
-            <div className="overflow-y-auto divide-y divide-[#2d3139]">
+            <div className="overflow-y-auto divide-y divide-border-subtle">
               {myTasks.length === 0 ? (
                 <div className="p-6 text-center text-subtle text-sm">No tasks assigned to you.</div>
               ) : (
                 myTasks.map(task => (
                   <div 
                     key={task.id} 
-                    className="p-3 hover:bg-white/5 cursor-pointer group flex flex-col gap-2 transition-colors"
+                    className="p-3 hover:bg-surface-dim cursor-pointer group flex flex-col gap-2 transition-colors"
                     onClick={() => setSelectedTask(task)}
                   >
                     <div className="flex items-start justify-between">
@@ -206,10 +206,10 @@ export default function Dashboard() {
                           task.priority === 'urgent' ? 'bg-red-500 text-red-500' :
                           task.priority === 'high' ? 'bg-amber-500 text-amber-500' :
                           task.priority === 'medium' ? 'bg-blue-500 text-blue-500' :
-                          'bg-slate-500 text-subtle'
+                          'bg-surface-accent text-subtle'
                         )}></div>
                         <div>
-                          <div className="text-xs font-bold text-slate-100">{task.title}</div>
+                          <div className="text-xs font-bold text-strong">{task.title}</div>
                           {task.branchName && (
                             <div className="text-[10px] text-subtle mt-0.5 font-mono italic">{task.branchName}</div>
                           )}
@@ -217,7 +217,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-mono text-muted">{format(new Date(task.deadline), 'MMM dd').toUpperCase()}</div>
-                        <div className="text-[9px] bg-slate-800 text-muted px-1.5 py-0.5 rounded mt-1 uppercase">
+                        <div className="text-[9px] bg-surface-accent text-muted px-1.5 py-0.5 rounded mt-1 uppercase">
                           {task.status.replace('_', ' ')}
                         </div>
                       </div>
