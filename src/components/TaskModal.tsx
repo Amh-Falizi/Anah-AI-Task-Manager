@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Task, User } from '../types';
+import { Task, User, Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { X, GitBranch, Loader2, Edit2, Calendar, Clock, CheckCircle2, Trash, Plus } from 'lucide-react';
 import Markdown from 'react-markdown';
@@ -41,6 +41,16 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
     projectId: task?.projectId || projectId || null,
     dependencies: task?.dependencies || []
   });
+
+  const [projectsList, setProjectsList] = useState<Project[]>([]);
+  
+  useEffect(() => {
+    fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setProjectsList(data))
+      .catch(err => console.error("Error fetching projects", err));
+  }, [token]);
+
   const [generatingBranch, setGeneratingBranch] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   
@@ -584,6 +594,17 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
                     )}
                   </div>
                   <div>
+                    <label className="text-[9px] font-bold text-subtle uppercase tracking-widest block mb-1">Project</label>
+                    {task.projectId ? (
+                      <div className="flex items-center space-x-2 text-sm text-strong bg-surface-dim p-2 rounded border border-border-subtle">
+                        <FolderKanban size={14} className="text-blue-400" />
+                        <span>{projectsList.find(p => p.id === task.projectId)?.name || 'Unknown Project'}</span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-subtle italic">No Project</span>
+                    )}
+                  </div>
+                  <div>
                     <label className="text-[9px] font-bold text-subtle uppercase tracking-widest block mb-1">Deadline</label>
                     <div className="flex items-center space-x-2 text-sm text-strong bg-surface-dim p-2 rounded border border-border-subtle">
                       <Calendar size={14} className="text-muted" />
@@ -676,6 +697,21 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
             </div>
 
             <div className="space-y-1">
+              <label className="text-[9px] font-bold text-subtle uppercase tracking-widest block">Project</label>
+              <select
+                className="w-full rounded bg-surface-dim border border-border-subtle px-3 py-2 text-xs text-strong focus:border-blue-500 focus:outline-none appearance-none"
+                value={formData.projectId || ''}
+                onChange={e => setFormData(p => ({ ...p, projectId: e.target.value }))}
+                required
+              >
+                <option value="" disabled hidden>Select Project...</option>
+                {projectsList.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
               <label className="text-[9px] font-bold text-subtle uppercase tracking-widest block">Deadline</label>
               <input
                 type="date"
@@ -729,7 +765,7 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
              </div>
              <input
               type="text"
-              placeholder="e.g., feat/add-login-page"
+              placeholder="e.g., PROJ-123"
               className="w-full rounded bg-surface-dim border border-border-subtle px-3 py-2 focus:border-blue-500 focus:outline-none font-mono text-xs text-blue-400 placeholder-slate-700"
               value={formData.branchName || ''}
               onChange={e => setFormData(p => ({ ...p, branchName: e.target.value }))}

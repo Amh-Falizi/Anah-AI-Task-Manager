@@ -73,29 +73,69 @@ export default function Projects() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {projects.map(project => (
+            {projects.map(project => {
+              const isOwnerOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'manager' || currentUser?.id === project.ownerId;
+              
+              return (
               <div 
                 key={project.id}
-                className="bg-surface border border-border-subtle hover:border-blue-500/50 rounded-lg p-5 transition-all group flex flex-col"
+                onClick={() => navigate(`/board?projectId=${project.id}`)}
+                className="bg-surface border border-border-subtle hover:border-blue-500/50 rounded-lg p-5 transition-all group flex flex-col relative cursor-pointer"
               >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                <div className="flex justify-between items-start mb-3 gap-2">
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
                       <FolderKanban size={20} />
                     </div>
-                    <div>
-                      <h3 className="text-strong font-medium truncate flex items-center gap-2">
-                        {project.name}
-                        {project.projectKey && <span className="text-[10px] text-subtle font-mono bg-surface-dim px-1.5 py-0.5 rounded border border-border-subtle">{project.projectKey}</span>}
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-strong font-medium flex items-center gap-2 truncate">
+                        <span className="truncate">{project.name}</span>
+                        {project.projectKey && <span className="text-[10px] text-subtle font-mono bg-surface-dim px-1.5 py-0.5 rounded border border-border-subtle shrink-0">{project.projectKey}</span>}
                       </h3>
                       {project.ownerId === currentUser?.id && (
                         <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold tracking-wider uppercase inline-block mt-1">OWNER</span>
                       )}
                     </div>
                   </div>
+                  {isOwnerOrAdmin && (
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProject(project);
+                          setShowCreateModal(true);
+                        }}
+                        className="p-1 text-muted hover:text-blue-400 transition-colors bg-surface-dim hover:bg-blue-500/10 rounded"
+                        title="Edit Project"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm(`Are you sure you want to delete ${project.name}?`)) return;
+                          try {
+                            const res = await fetch(`/api/projects/${project.id}`, {
+                              method: 'DELETE',
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            if (res.ok) {
+                              fetchProjects();
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="p-1 text-muted hover:text-red-400 transition-colors bg-surface-dim hover:bg-red-500/10 rounded"
+                        title="Delete Project"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="text-xs text-muted line-clamp-2 mb-6 flex-1 min-h-[32px] prose prose-invert prose-sm">
+                <div className="text-xs text-muted mb-6 flex-1 min-h-[32px] prose prose-invert prose-sm prose-p:my-1 prose-h1:text-sm prose-h2:text-sm prose-h3:text-sm overflow-hidden text-ellipsis line-clamp-2 break-words">
                   {project.description ? (
                     <Markdown>{project.description}</Markdown>
                   ) : (
@@ -103,14 +143,15 @@ export default function Projects() {
                   )}
                 </div>
                 
-                <div className="flex items-center justify-between pt-4 border-t border-border-subtle">
-                  <div className="flex items-center text-[10px] text-subtle font-medium">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4 border-t border-border-subtle gap-3 mt-auto">
+                  <div className="flex items-center text-[10px] text-subtle font-medium shrink-0">
                     <Calendar size={12} className="mr-1.5" />
                     {format(new Date(project.createdAt), 'MMM d, yyyy')}
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedProject(project);
                         setIsWorkloadModalOpen(true);
                       }}
@@ -120,7 +161,8 @@ export default function Projects() {
                       <span>Workload</span>
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setSelectedProject(project);
                         setIsActivityModalOpen(true);
                       }}
@@ -130,7 +172,10 @@ export default function Projects() {
                       <span>Activity</span>
                     </button>
                     <button
-                      onClick={() => navigate(`/board?projectId=${project.id}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/board?projectId=${project.id}`);
+                      }}
                       className="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1.5 rounded transition-colors"
                     >
                       <LayoutDashboard size={14} />
@@ -139,16 +184,21 @@ export default function Projects() {
                   </div>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
 
       {showCreateModal && (
         <CreateProjectModal 
-          onClose={() => setShowCreateModal(false)} 
+          project={selectedProject}
+          onClose={() => {
+            setShowCreateModal(false);
+            setSelectedProject(null);
+          }} 
           onSuccess={() => {
             setShowCreateModal(false);
+            setSelectedProject(null);
             fetchProjects();
           }} 
         />
@@ -180,10 +230,10 @@ export default function Projects() {
   );
 }
 
-function CreateProjectModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+function CreateProjectModal({ project, onClose, onSuccess }: { project?: Project | null, onClose: () => void, onSuccess: () => void }) {
   const { token } = useAuth();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(project?.name || '');
+  const [description, setDescription] = useState(project?.description || '');
   const [previewMode, setPreviewMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -193,8 +243,8 @@ function CreateProjectModal({ onClose, onSuccess }: { onClose: () => void, onSuc
     
     setSubmitting(true);
     try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
+      const res = await fetch(project ? `/api/projects/${project.id}` : '/api/projects', {
+        method: project ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -215,7 +265,7 @@ function CreateProjectModal({ onClose, onSuccess }: { onClose: () => void, onSuc
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div className="bg-surface border border-border-subtle rounded-lg shadow-2xl w-full max-w-md flex flex-col font-sans">
         <div className="px-6 py-4 border-b border-border-subtle flex justify-between items-center bg-page-bg rounded-t-lg">
-          <h2 className="text-sm font-bold text-strong uppercase tracking-widest">Create Project</h2>
+          <h2 className="text-sm font-bold text-strong uppercase tracking-widest">{project ? 'Edit Project' : 'Create Project'}</h2>
           <button onClick={onClose} className="text-subtle hover:text-red-400 transition-colors">
             <X size={18} />
           </button>
@@ -291,7 +341,7 @@ function CreateProjectModal({ onClose, onSuccess }: { onClose: () => void, onSuc
               disabled={!name.trim() || submitting}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-strong rounded text-sm font-medium transition-colors"
             >
-              {submitting ? 'Creating...' : 'Create Project'}
+              {submitting ? 'Saving...' : (project ? 'Save Changes' : 'Create Project')}
             </button>
           </div>
         </form>

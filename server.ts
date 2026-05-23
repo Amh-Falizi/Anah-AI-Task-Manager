@@ -166,6 +166,12 @@ async function initDb(): Promise<DatabaseWrapper> {
       joinedAt TEXT NOT NULL,
       UNIQUE(teamId, userId)
     );
+
+    CREATE TABLE IF NOT EXISTS team_projects (
+      teamId TEXT NOT NULL,
+      projectId TEXT NOT NULL,
+      PRIMARY KEY (teamId, projectId)
+    );
     CREATE TABLE IF NOT EXISTS task_dependencies (
       taskId TEXT NOT NULL,
       blockedByTaskId TEXT NOT NULL,
@@ -231,7 +237,7 @@ async function initDb(): Promise<DatabaseWrapper> {
         for (const t of data.tasks) {
           await db.run(
             "INSERT INTO tasks (id, title, description, status, priority, deadline, assigneeId, creatorId, branchName, parentId, projectId, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [t.id, t.title, t.description, t.status, t.priority, t.deadline, t.assigneeId, t.creatorId, t.branchName, t.parentId || null, null, t.createdAt]
+            [t.id, t.title, t.description, t.status, t.priority, t.deadline, t.assigneeId, t.creatorId, t.branchName, t.parentId || null, t.projectId || null, t.createdAt]
           );
         }
         console.log("Migrated data from db.json to database.sqlite");
@@ -528,6 +534,10 @@ app.delete("/api/tasks/:taskId/comments/:commentId", authenticateToken, async (r
 
 // Create Task
 app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
+  if (!req.body.projectId) {
+    return res.status(400).json({ error: "projectId is required" });
+  }
+
   const db = await dbPromise;
   
   let branchName = req.body.branchName;
@@ -595,6 +605,10 @@ app.put("/api/tasks/:id", authenticateToken, async (req: any, res: any) => {
 
   if (req.user.role !== "admin" && req.user.role !== "manager" && task.creatorId !== req.user.id && task.assigneeId !== req.user.id) {
     return res.status(403).json({ error: "Only admins, managers, creators, or assignees can edit tasks." });
+  }
+
+  if (req.body.projectId === null || req.body.projectId === "") {
+    return res.status(400).json({ error: "projectId cannot be removed from a task" });
   }
 
   const updated = { ...task, ...req.body, id: task.id };
@@ -737,12 +751,6 @@ app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
     }
     
     let branchName = projectKey;
-    if (title) {
-       const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-       if (slug) {
-          branchName = `${type || 'feat'}/${projectKey}-${slug}`;
-       }
-    }
     
     res.json({ branchName });
   } catch (error: any) {
@@ -961,6 +969,75 @@ app.delete("/api/teams/:id/members/:userId", authenticateToken, async (req: any,
 
   await db.run("DELETE FROM team_members WHERE teamId = ? AND userId = ?", [req.params.id, req.params.userId]);
   res.json({ success: true });
+});
+
+app.get("/api/teams/:id/projects", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const projects = await db.all(`
+    SELECT p.* 
+    FROM projects p
+    JOIN team_projects tp ON p.id = tp.projectId
+    WHERE tp.teamId = ?
+  `, req.params.id);
+  res.json(projects);
+});
+
+app.post("/api/teams/:id/projects", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+
+  const team = await db.get("SELECT * FROM teams WHERE id = ?", req.params.id);
+  if (!team) return res.sendStatus(404);
+
+  if (req.user.role !== "admin" && team.ownerId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins or the team owner can add projects." });
+  }
+
+  try {
+    await db.run(
+      "INSERT INTO team_projects (teamId, projectId) VALUES (?, ?)",
+      [req.params.id, req.body.projectId]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    if (err.message.includes("UNIQUE constraint failed")) {
+      res.status(400).json({ error: "Project is already in team" });
+    } else {
+      res.status(500).json({ error: "Failed to add project" });
+    }
+  }
+});
+
+app.delete("/api/teams/:id/projects/:projectId", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+
+  const team = await db.get("SELECT * FROM teams WHERE id = ?", req.params.id);
+  if (!team) return res.sendStatus(404);
+
+  if (req.user.role !== "admin" && team.ownerId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins or the team owner can remove projects." });
+  }
+
+  await db.run("DELETE FROM team_projects WHERE teamId = ? AND projectId = ?", [req.params.id, req.params.projectId]);
+  res.json({ success: true });
+});
+
+app.put("/api/teams/:id", authenticateToken, async (req: any, res: any) => {
+  const db = await dbPromise;
+  const team = await db.get("SELECT * FROM teams WHERE id = ?", req.params.id);
+  if (!team) return res.sendStatus(404);
+
+  if (req.user.role !== "admin" && team.ownerId !== req.user.id) {
+    return res.status(403).json({ error: "Only admins and the team owner can edit this team." });
+  }
+
+  const { name, description } = req.body;
+  await db.run(
+    "UPDATE teams SET name = COALESCE(?, name), description = COALESCE(?, description) WHERE id = ?",
+    [name, description, req.params.id]
+  );
+  
+  const updatedTeam = await db.get("SELECT * FROM teams WHERE id = ?", req.params.id);
+  res.json(updatedTeam);
 });
 
 app.delete("/api/teams/:id", authenticateToken, async (req: any, res: any) => {

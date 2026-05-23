@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Team, TeamMember, User } from '../types';
-import { Users, Plus, X, Trash2, Shield } from 'lucide-react';
+import { Team, TeamMember, User, Project } from '../types';
+import { Users, Plus, X, Trash2, Shield, FolderKanban } from 'lucide-react';
 import { format } from 'date-fns';
 import Markdown from 'react-markdown';
 import UserAvatar from '../components/UserAvatar';
+import SearchableSelect from '../components/SearchableSelect';
 
 export default function Teams() {
   const { token, user: currentUser } = useAuth();
@@ -67,15 +68,54 @@ export default function Teams() {
                 <div 
                   key={team.id}
                   onClick={() => setSelectedTeam(team)}
-                  className={`bg-surface border ${selectedTeam?.id === team.id ? 'border-blue-500' : 'border-border-subtle hover:border-border-strong'} rounded-lg p-5 cursor-pointer transition-colors flex flex-col`}
+                  className={`bg-surface border ${selectedTeam?.id === team.id ? 'border-blue-500' : 'border-border-subtle hover:border-border-strong'} rounded-lg p-5 cursor-pointer transition-colors flex flex-col group relative`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-strong font-medium truncate pr-2">{team.name}</h3>
-                    {team.ownerId === currentUser?.id && (
-                      <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">OWNER</span>
-                    )}
+                    <h3 className="text-strong font-medium truncate flex-1 min-w-0 pr-2">{team.name}</h3>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {team.ownerId === currentUser?.id && (
+                        <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-bold">OWNER</span>
+                      )}
+                      {(currentUser?.role === 'admin' || team.ownerId === currentUser?.id) && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTeam(team);
+                              setShowCreateModal(true);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-blue-400 transition-colors bg-surface-dim hover:bg-blue-500/10 rounded"
+                            title="Edit Team"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Are you sure you want to delete ${team.name}?`)) return;
+                              try {
+                                const res = await fetch(`/api/teams/${team.id}`, {
+                                  method: 'DELETE',
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                if (res.ok) {
+                                  if (selectedTeam?.id === team.id) setSelectedTeam(null);
+                                  fetchTeams();
+                                }
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-400 transition-colors bg-surface-dim hover:bg-red-500/10 rounded"
+                            title="Delete Team"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted line-clamp-2 mb-4 flex-1 prose prose-invert prose-sm">
+                  <div className="text-xs text-muted mb-4 flex-1 prose prose-invert prose-sm prose-p:my-1 overflow-hidden text-ellipsis line-clamp-2 break-words text-left">
                     {team.description ? (
                       <Markdown>{team.description}</Markdown>
                     ) : (
@@ -108,9 +148,14 @@ export default function Teams() {
 
       {showCreateModal && (
         <CreateTeamModal 
-          onClose={() => setShowCreateModal(false)}
+          team={selectedTeam}
+          onClose={() => {
+            setShowCreateModal(false);
+            if (!selectedTeam?.id) setSelectedTeam(null);
+          }}
           onSuccess={() => {
             setShowCreateModal(false);
+            if (!selectedTeam?.id) setSelectedTeam(null);
             fetchTeams();
           }}
         />
@@ -119,20 +164,20 @@ export default function Teams() {
   );
 }
 
-function CreateTeamModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
+function CreateTeamModal({ team, onClose, onSuccess }: { team?: Team | null, onClose: () => void, onSuccess: () => void }) {
   const { token } = useAuth();
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(team?.name || '');
+  const [description, setDescription] = useState(team?.description || '');
   const [previewMode, setPreviewMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name) return;
+    if (!name.trim()) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/teams', {
-        method: 'POST',
+      const res = await fetch(team ? `/api/teams/${team.id}` : '/api/teams', {
+        method: team ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name, description })
       });
@@ -150,7 +195,7 @@ function CreateTeamModal({ onClose, onSuccess }: { onClose: () => void, onSucces
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-surface rounded-lg shadow-2xl border border-border-subtle w-full max-w-md overflow-hidden flex flex-col">
         <div className="flex justify-between items-center px-5 py-4 border-b border-border-subtle bg-surface-dim">
-          <h2 className="text-sm font-bold text-strong uppercase tracking-wider">Create New Team</h2>
+          <h2 className="text-sm font-bold text-strong uppercase tracking-wider">{team ? 'Edit Team' : 'Create New Team'}</h2>
           <button onClick={onClose} className="text-subtle hover:text-strong transition-colors">
             <X size={18} />
           </button>
@@ -217,10 +262,10 @@ function CreateTeamModal({ onClose, onSuccess }: { onClose: () => void, onSucces
             </button>
             <button
               type="submit"
-              disabled={submitting || !name}
+              disabled={submitting || !name.trim()}
               className="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-strong rounded transition-colors"
             >
-              {submitting ? 'Creating...' : 'Create Team'}
+              {submitting ? 'Saving...' : (team ? 'Save Changes' : 'Create Team')}
             </button>
           </div>
         </form>
@@ -232,24 +277,32 @@ function CreateTeamModal({ onClose, onSuccess }: { onClose: () => void, onSucces
 function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: () => void, onTeamDeleted: () => void }) {
   const { token, user: currentUser } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [teamProjects, setTeamProjects] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [userToAdd, setUserToAdd] = useState('');
-  const [adding, setAdding] = useState(false);
+  const [projectToAdd, setProjectToAdd] = useState('');
+  const [addingUser, setAddingUser] = useState(false);
+  const [addingProject, setAddingProject] = useState(false);
 
   const isAdminOrOwner = currentUser?.role === 'admin' || currentUser?.id === team.ownerId;
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [membersRes, usersRes] = await Promise.all([
+      const [membersRes, usersRes, teamProjectsRes, allProjectsRes] = await Promise.all([
         fetch(`/api/teams/${team.id}/members`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/teams/${team.id}/projects`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       
-      if (membersRes.ok && usersRes.ok) {
+      if (membersRes.ok && usersRes.ok && teamProjectsRes.ok && allProjectsRes.ok) {
         setMembers(await membersRes.json());
         setAllUsers(await usersRes.json());
+        setTeamProjects(await teamProjectsRes.json());
+        setAllProjects(await allProjectsRes.json());
       }
     } catch (err) {
       console.error(err);
@@ -265,7 +318,7 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userToAdd) return;
-    setAdding(true);
+    setAddingUser(true);
     try {
       const res = await fetch(`/api/teams/${team.id}/members`, {
         method: 'POST',
@@ -282,7 +335,7 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
     } catch (err) {
       console.error(err);
     } finally {
-      setAdding(false);
+      setAddingUser(false);
     }
   };
 
@@ -290,6 +343,45 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
     if (!confirm('Are you sure you want to remove this member?')) return;
     try {
       const res = await fetch(`/api/teams/${team.id}/members/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectToAdd) return;
+    setAddingProject(true);
+    try {
+      const res = await fetch(`/api/teams/${team.id}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ projectId: projectToAdd })
+      });
+      if (res.ok) {
+        setProjectToAdd('');
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAddingProject(false);
+    }
+  };
+
+  const handleRemoveProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to remove this project from the team?')) return;
+    try {
+      const res = await fetch(`/api/teams/${team.id}/projects/${projectId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -317,6 +409,7 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
   };
 
   const availableUsers = allUsers.filter(u => !members.some(m => m.id === u.id));
+  const availableProjects = allProjects.filter(p => !teamProjects.some(tp => tp.id === p.id));
 
   return (
     <div className="flex flex-col h-full bg-surface-dim">
@@ -354,20 +447,88 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
         <section>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-[10px] font-bold text-subtle uppercase tracking-widest flex items-center">
+              <FolderKanban size={12} className="mr-2" />
+              Projects ({teamProjects.length})
+            </h3>
+          </div>
+
+          <div className="bg-surface rounded-lg border border-border-subtle">
+            {loading ? (
+              <div className="p-4 text-sm text-subtle text-center">Loading projects...</div>
+            ) : teamProjects.length === 0 ? (
+              <div className="p-6 text-sm text-subtle text-center">No projects assigned yet.</div>
+            ) : (
+              <ul className="divide-y divide-border-subtle">
+                {teamProjects.map((project, index) => (
+                  <li key={project.id} className={`flex justify-between items-center p-4 hover:bg-surface-dim transition-colors ${index === 0 ? 'rounded-t-lg' : ''} ${(index === teamProjects.length - 1 && !isAdminOrOwner) ? 'rounded-b-lg' : ''}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                        <FolderKanban size={14} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-strong flex items-center gap-2 truncate">
+                          <span className="truncate">{project.name}</span>
+                          {project.projectKey && <span className="text-[10px] text-subtle font-mono bg-surface-dim px-1.5 py-0.5 rounded border border-border-subtle shrink-0">{project.projectKey}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {isAdminOrOwner && (
+                      <button
+                        onClick={() => handleRemoveProject(project.id)}
+                        className="text-subtle hover:text-red-400 p-2 rounded transition-colors text-xs shrink-0 ml-4"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            
+            {isAdminOrOwner && availableProjects.length > 0 && (
+              <div className="p-4 bg-page-bg border-t border-border-subtle rounded-b-lg">
+                <form onSubmit={handleAddProject} className="flex gap-2">
+                  <SearchableSelect
+                    options={availableProjects.map(p => ({
+                      id: p.id,
+                      label: p.name,
+                      subLabel: p.projectKey ? `(${p.projectKey})` : undefined
+                    }))}
+                    value={projectToAdd}
+                    onChange={setProjectToAdd}
+                    placeholder="Select a project to add..."
+                    placement="top"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!projectToAdd || addingProject}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-strong px-4 py-2 rounded text-sm font-medium transition-colors whitespace-nowrap"
+                  >
+                    {addingProject ? 'Adding...' : 'Add Project'}
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-[10px] font-bold text-subtle uppercase tracking-widest flex items-center">
               <Users size={12} className="mr-2" />
               Members ({members.length})
             </h3>
           </div>
 
-          <div className="bg-surface rounded-lg border border-border-subtle overflow-hidden">
+          <div className="bg-surface rounded-lg border border-border-subtle">
             {loading ? (
               <div className="p-4 text-sm text-subtle text-center">Loading members...</div>
             ) : members.length === 0 ? (
               <div className="p-6 text-sm text-subtle text-center">No members yet.</div>
             ) : (
               <ul className="divide-y divide-border-subtle">
-                {members.map(member => (
-                  <li key={member.id} className="flex justify-between items-center p-4 hover:bg-surface-dim transition-colors">
+                {members.map((member, index) => (
+                  <li key={member.id} className={`flex justify-between items-center p-4 hover:bg-surface-dim transition-colors ${index === 0 ? 'rounded-t-lg' : ''} ${(index === members.length - 1 && !isAdminOrOwner) ? 'rounded-b-lg' : ''}`}>
                     <div className="flex items-center gap-3">
                       <UserAvatar user={member} showTooltip={false} />
                       <div>
@@ -394,24 +555,25 @@ function TeamDetails({ team, onClose, onTeamDeleted }: { team: Team, onClose: ()
             )}
             
             {isAdminOrOwner && availableUsers.length > 0 && (
-              <div className="p-4 bg-page-bg border-t border-border-subtle">
-                <form onSubmit={handleAddMember} className="flex gap-2">
-                  <select
-                    className="flex-1 rounded bg-surface-dim border border-border-subtle px-3 py-2 text-sm text-strong focus:border-blue-500 focus:outline-none"
+              <div className="p-4 bg-page-bg border-t border-border-subtle rounded-b-lg">
+                <form onSubmit={handleAddMember} className="flex gap-2 items-start">
+                  <SearchableSelect
+                    options={availableUsers.map(u => ({
+                      id: u.id,
+                      label: u.name,
+                      subLabel: u.email
+                    }))}
                     value={userToAdd}
-                    onChange={e => setUserToAdd(e.target.value)}
-                  >
-                    <option value="">Select a user to add...</option>
-                    {availableUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                    ))}
-                  </select>
+                    onChange={setUserToAdd}
+                    placeholder="Select a user to add..."
+                    placement="top"
+                  />
                   <button
                     type="submit"
-                    disabled={!userToAdd || adding}
+                    disabled={!userToAdd || addingUser}
                     className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-strong px-4 py-2 rounded text-sm font-medium transition-colors whitespace-nowrap"
                   >
-                    Add Member
+                    {addingUser ? 'Adding...' : 'Add Member'}
                   </button>
                 </form>
               </div>
