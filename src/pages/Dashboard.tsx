@@ -87,22 +87,44 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <div className="p-8">Loading...</div>;
+  const [columns, setColumns] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('board-columns-all');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  if (loading) return <div className="p-8 text-strong text-sm">Loading...</div>;
 
   const myTasks = tasks.filter(t => t.assigneeId === user?.id);
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
-  const reviewTasks = tasks.filter(t => t.status === 'review').length;
-  const todoTasks = tasks.filter(t => t.status === 'todo').length;
-  const urgentTasks = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done').length;
 
-  const statusData = [
-    { name: 'To Do', value: todoTasks, color: '#94a3b8' },
-    { name: 'In Progress', value: inProgress, color: '#3b82f6' },
-    { name: 'Review', value: reviewTasks, color: '#eab308' },
-    { name: 'Done', value: completedTasks, color: '#10b981' },
-  ].filter(d => d.value > 0);
+  const defaultColumns = [
+    { id: 'todo', title: 'To Do', color: '#94a3b8' },
+    { id: 'in_progress', title: 'In Progress', color: '#3b82f6' },
+    { id: 'review', title: 'Review', color: '#eab308' },
+    { id: 'done', title: 'Done', color: '#10b981' }
+  ];
+
+  const activeColumns = columns || defaultColumns;
+
+  const statusData = activeColumns.map((col, index) => {
+    const value = tasks.filter(t => t.status === col.id).length;
+    // give generic stable colors for custom columns
+    const fallbackColors = ['#94a3b8', '#3b82f6', '#eab308', '#10b981', '#a855f7', '#ec4899', '#f97316', '#14b8a6'];
+    return {
+      name: col.title,
+      value,
+      color: col.color || fallbackColors[index % fallbackColors.length]
+    };
+  }).filter(d => d.value > 0);
+
+  const completedTasks = tasks.filter(t => t.status === 'done' || t.status === (activeColumns[activeColumns.length - 1]?.id)).length;
+  const inProgress = tasks.filter(t => t.status !== 'todo' && t.status !== activeColumns[0]?.id && t.status !== 'done' && t.status !== activeColumns[activeColumns.length - 1]?.id).length;
+  const urgentTasks = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done' && t.status !== activeColumns[activeColumns.length - 1]?.id).length;
+
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {

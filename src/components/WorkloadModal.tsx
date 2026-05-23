@@ -21,8 +21,32 @@ interface UserWorkload {
 
 export default function WorkloadModal({ projectId, projectName, onClose }: WorkloadModalProps) {
   const { token } = useAuth();
-  const [workloads, setWorkloads] = useState<UserWorkload[]>([]);
+  const [workloads, setWorkloads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [columns, setColumns] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem(`board-columns-${projectId || 'all'}`);
+      const defCols = [
+        { id: 'todo', title: 'To Do', color: '#94a3b8' },
+        { id: 'in_progress', title: 'In Progress', color: '#3b82f6' },
+        { id: 'review', title: 'Review', color: '#eab308' },
+        { id: 'done', title: 'Done', color: '#10b981' }
+      ];
+      return saved ? JSON.parse(saved) : defCols;
+    } catch {
+      return [];
+    }
+  });
+
+  const getColColor = (id: string, index: number) => {
+    const col = columns.find(c => c.id === id);
+    if (col?.color) return col.color;
+    const fallbackColors = ['#3b82f6', '#eab308', '#10b981', '#a855f7', '#ec4899', '#f97316', '#14b8a6', '#94a3b8'];
+    return fallbackColors[index % fallbackColors.length];
+  };
+
+  const getColTitle = (id: string) => columns.find(c => c.id === id)?.title || id.replace('_', ' ');
 
   useEffect(() => {
     let active = true;
@@ -85,35 +109,25 @@ export default function WorkloadModal({ projectId, projectName, onClose }: Workl
                   
                   {/* Progress Bar */}
                   <div className="h-2 w-full bg-surface rounded-full overflow-hidden flex mb-4">
-                     <div style={{ width: `${w.done > 0 ? (w.done / w.total) * 100 : 0}%` }} className="bg-emerald-500 h-full" />
-                     <div style={{ width: `${w.review > 0 ? (w.review / w.total) * 100 : 0}%` }} className="bg-yellow-500 h-full" />
-                     <div style={{ width: `${w.in_progress > 0 ? (w.in_progress / w.total) * 100 : 0}%` }} className="bg-blue-500 h-full" />
+                     {Object.entries(w.statuses || {}).map(([status, count], i) => (
+                       <div key={status} style={{ width: `${((count as number) / w.total) * 100}%`, backgroundColor: getColColor(status, i) }} className="h-full" />
+                     ))}
                   </div>
                   
                   {/* Stats Grid */}
-                  <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
                     <div className="bg-surface rounded py-2 border border-border-subtle">
                        <div className="text-lg font-semibold text-primary">{w.total}</div>
                        <div className="text-[9px] uppercase tracking-wider text-subtle">Total</div>
                     </div>
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded py-2 text-emerald-400">
-                       <div className="flex items-center justify-center space-x-1 mb-1">
-                          <CheckCircle2 size={12} />
-                          <span className="text-lg font-semibold leading-none">{w.done}</span>
-                       </div>
-                       <div className="text-[9px] uppercase tracking-wider opacity-70">Done</div>
-                    </div>
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded py-2 text-yellow-400">
-                       <div className="text-lg font-semibold leading-none mb-1">{w.review}</div>
-                       <div className="text-[9px] uppercase tracking-wider opacity-70">Review</div>
-                    </div>
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded py-2 text-blue-400">
-                       <div className="flex items-center justify-center space-x-1 mb-1">
-                          <CircleDashed size={12} />
-                          <span className="text-lg font-semibold leading-none">{w.in_progress}</span>
-                       </div>
-                       <div className="text-[9px] uppercase tracking-wider opacity-70">In Progress</div>
-                    </div>
+                    {Object.entries(w.statuses || {}).map(([status, count], i) => (
+                      <div key={status} className="bg-surface-dim border border-border-subtle rounded py-2" style={{ color: getColColor(status, i) }}>
+                         <div className="flex items-center justify-center space-x-1 mb-1">
+                            <span className="text-lg font-semibold leading-none">{String(count)}</span>
+                         </div>
+                         <div className="text-[9px] text-strong uppercase tracking-wider opacity-70 truncate px-1">{getColTitle(status)}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}

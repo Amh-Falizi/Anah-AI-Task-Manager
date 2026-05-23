@@ -11,6 +11,7 @@ interface TaskModalProps {
   task: Task | null;
   users: User[];
   tasks?: Task[]; // passed for parsing subtasks
+  columns?: {id: string, title: string}[]; // dynamic columns
   onClose: () => void;
   onSave: (task: Partial<Task>) => void;
   onUpdateTask?: (taskId: string, currentTask: Task, updates: Partial<Task>) => void;
@@ -18,18 +19,20 @@ interface TaskModalProps {
   onCreateSubtask?: (parentId: string) => void;
   parentId?: string | null;
   projectId?: string | null;
-  initialStatus?: "todo" | "in_progress" | "review" | "done" | string;
+  initialStatus?: string;
 }
 
-export default function TaskModal({ task, users, tasks = [], onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId, initialStatus }: TaskModalProps) {
+export default function TaskModal({ task, users, tasks = [], columns, onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId, initialStatus }: TaskModalProps) {
   const { token, user } = useAuth();
   const isEdit = !!task;
   const [isViewMode, setIsViewMode] = useState(isEdit);
+
+  const getStatusTitle = (id: string) => columns?.find(c => c.id === id)?.title || id.replace('_', ' ');
   
   const [formData, setFormData] = useState<Partial<Task>>({
     title: task?.title || '',
     description: task?.description || '',
-    status: task?.status || (initialStatus as "todo" | "in_progress" | "review" | "done") || 'todo',
+    status: task?.status || initialStatus || 'todo',
     priority: task?.priority || 'medium',
     deadline: task?.deadline ? task.deadline.split('T')[0] : new Date().toISOString().split('T')[0],
     assigneeId: task?.assigneeId || '',
@@ -192,7 +195,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                   {task.priority} Priority
                 </span>
                 <span className="px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-surface-accent text-strong">
-                  {task.status.replace('_', ' ')}
+                  {getStatusTitle(task.status)}
                 </span>
                 {task.branchName && (
                   <span className="flex items-center space-x-1 text-muted bg-surface-dim px-2 py-0.5 rounded border border-border-subtle font-mono">
@@ -336,7 +339,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                                     <span className={cn("text-sm text-strong", st.status === 'done' && 'line-through text-subtle')}>{st.title}</span>
                                   </div>
                                   <span className="text-[10px] font-bold uppercase tracking-widest text-subtle bg-surface-dim px-2 py-1 rounded">
-                                    {st.status.replace('_', ' ')}
+                                    {getStatusTitle(st.status)}
                                   </span>
                                 </div>
                               ))}
@@ -633,10 +636,14 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                 value={formData.status}
                 onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))}
               >
-                <option value="todo">To Do</option>
-                <option value="in_progress">In Progress</option>
-                <option value="review">Review</option>
-                <option value="done">Done</option>
+                {(columns || [
+                  { id: 'todo', title: 'To Do' },
+                  { id: 'in_progress', title: 'In Progress' },
+                  { id: 'review', title: 'Review' },
+                  { id: 'done', title: 'Done' }
+                ]).map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
               </select>
             </div>
 
@@ -696,7 +703,7 @@ export default function TaskModal({ task, users, tasks = [], onClose, onSave, on
                       }}
                     />
                     <span>{t.title}</span>
-                    <span className="text-subtle text-[10px] uppercase">({t.status.replace('_', ' ')})</span>
+                    <span className="text-subtle text-[10px] uppercase">({getStatusTitle(t.status)})</span>
                   </label>
                 ))}
                 {tasks.filter(t => t.id !== task?.id && (!formData.projectId || t.projectId === formData.projectId)).length === 0 && (

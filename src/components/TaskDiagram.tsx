@@ -9,8 +9,10 @@ import { Task } from '../types';
 
 interface TaskDiagramProps {
   tasks: Task[];
+  layoutKey?: string;
   onConnectTask?: (sourceId: string, targetId: string) => void;
   onReverseConnection?: (sourceId: string, targetId: string) => void;
+  onTaskDoubleClick?: (taskId: string) => void;
 }
 
 const nodeWidth = 220;
@@ -26,7 +28,12 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   });
 
   edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
+    // For stable layout, enforce a consistent topological direction for the layout engine
+    // regardless of actual dependency direction. This prevents nodes from violently 
+    // swapping places when a user reverses a connection.
+    const layoutSource = edge.source < edge.target ? edge.source : edge.target;
+    const layoutTarget = edge.source < edge.target ? edge.target : edge.source;
+    dagreGraph.setEdge(layoutSource, layoutTarget);
   });
 
   dagre.layout(dagreGraph);
@@ -90,7 +97,7 @@ const nodeTypes = {
   customTaskNode: CustomTaskNode
 };
 
-function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramProps) {
+function FlowLogic({ tasks, layoutKey, onConnectTask, onReverseConnection, onTaskDoubleClick }: TaskDiagramProps) {
   const { getIntersectingNodes } = useReactFlow();
   
   const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
@@ -118,10 +125,12 @@ function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramPro
     tasks.forEach(task => {
       if (task.dependencies) {
         task.dependencies.forEach(depId => {
+          const sourceTask = tasks.find(t => t.id === depId);
           edges.push({
             id: `e-${depId}-${task.id}`,
             source: depId,
             target: task.id,
+            type: 'smoothstep',
             markerEnd: {
               type: MarkerType.ArrowClosed,
               color: 'var(--app-text-subtle)',
@@ -131,7 +140,7 @@ function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramPro
               strokeWidth: 2,
               cursor: 'pointer',
             },
-            animated: task.status === 'in_progress'
+            animated: task.status === 'in_progress' || (sourceTask && sourceTask.status === 'in_progress')
           });
         });
       }
@@ -163,11 +172,28 @@ function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramPro
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
+  const previousLayoutKey = React.useRef(layoutKey);
+
   // Update nodes and edges when tasks change
   React.useEffect(() => {
-    setNodes(initialNodes);
+    const layoutKeyChanged = previousLayoutKey.current !== layoutKey;
+    previousLayoutKey.current = layoutKey;
+
+    setNodes((nds) => {
+      if (layoutKeyChanged) {
+        return initialNodes;
+      }
+
+      return initialNodes.map(inNode => {
+        const existingNode = nds.find(n => n.id === inNode.id);
+        if (existingNode) {
+          return { ...inNode, position: existingNode.position };
+        }
+        return inNode;
+      });
+    });
     setEdges(initialEdges);
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
+  }, [initialNodes, initialEdges, setNodes, setEdges, layoutKey]);
 
   const onConnect = useCallback((params: Connection) => {
     if (params.source && params.target && onConnectTask) {
@@ -194,6 +220,12 @@ function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramPro
     }
   }, [onReverseConnection]);
 
+  const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: any) => {
+    if (onTaskDoubleClick) {
+      onTaskDoubleClick(node.id);
+    }
+  }, [onTaskDoubleClick]);
+
   return (
     <div className="w-full h-full bg-surface-dim">
       <ReactFlow
@@ -205,6 +237,7 @@ function FlowLogic({ tasks, onConnectTask, onReverseConnection }: TaskDiagramPro
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onEdgeClick={onEdgeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
         fitView
       >
         <Background gap={12} size={1} color="var(--app-border-strong)" />

@@ -764,29 +764,31 @@ app.get("/api/projects/:id/workload", authenticateToken, async (req: any, res: a
   const workload: Record<string, any> = {};
   
   tasks.forEach((task: any) => {
-    if (!task.assigneeId) return; // Skip unassigned for now, or track separately if needed?
+    if (!task.assigneeId) return; 
     if (!workload[task.assigneeId]) {
       const user = users.find(u => u.id === task.assigneeId);
       workload[task.assigneeId] = {
         user: user || { id: task.assigneeId, name: 'Unknown User', email: '' },
         total: 0,
-        done: 0,
-        in_progress: 0,
-        todo: 0,
-        review: 0
+        statuses: {}
       };
     }
     workload[task.assigneeId].total++;
-    // Handle standard statuses, fallback to todo if something else
-    if (["todo", "in_progress", "review", "done"].includes(task.status)) {
-        workload[task.assigneeId][task.status]++;
+    const s = task.status || 'todo';
+    if (!workload[task.assigneeId].statuses[s]) {
+      workload[task.assigneeId].statuses[s] = 0;
     }
+    workload[task.assigneeId].statuses[s]++;
   });
 
-  const result = Object.values(workload).map((w: any) => ({
-    ...w,
-    completionPercentage: w.total > 0 ? Math.round((w.done / w.total) * 100) : 0
-  })).sort((a: any, b: any) => b.total - a.total);
+  const result = Object.values(workload).map((w: any) => {
+    // For legacy 'done' logic calculation where custom boards might use something else, we take 'done' if present, otherwise 0
+    const doneCount = w.statuses['done'] || 0;
+    return {
+      ...w,
+      completionPercentage: w.total > 0 ? Math.round((doneCount / w.total) * 100) : 0
+    };
+  }).sort((a: any, b: any) => b.total - a.total);
 
   res.json(result);
 });

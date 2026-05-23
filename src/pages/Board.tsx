@@ -12,12 +12,17 @@ import TaskDiagram from '../components/TaskDiagram';
 import Markdown from 'react-markdown';
 import UserAvatar from '../components/UserAvatar';
 
-const COLUMNS = [
+export interface Column {
+  id: string;
+  title: string;
+}
+
+const DEFAULT_COLUMNS: Column[] = [
   { id: 'todo', title: 'To Do' },
   { id: 'in_progress', title: 'In Progress' },
   { id: 'review', title: 'Review' },
   { id: 'done', title: 'Done' }
-] as const;
+];
 
 type SortOption = 'custom' | 'priority' | 'deadline' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -39,6 +44,43 @@ export default function Board() {
   const [users, setUsers] = useState<User[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   
+  const [columns, setColumns] = useState<Column[]>(() => {
+    try {
+      const saved = localStorage.getItem(`board-columns-${projectId || 'all'}`);
+      return saved ? JSON.parse(saved) : DEFAULT_COLUMNS;
+    } catch (e) {
+      return DEFAULT_COLUMNS;
+    }
+  });
+
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editingColumnTitle, setEditingColumnTitle] = useState('');
+
+  const handleAddColumn = () => {
+    const newId = `col_${Date.now()}`;
+    const newTitle = 'New Column';
+    setColumns([...columns, { id: newId, title: newTitle }]);
+    setTimeout(() => {
+       setEditingColumnId(newId);
+       setEditingColumnTitle(newTitle);
+    }, 0);
+  };
+
+  const handleUpdateColumnTitle = (id: string) => {
+    if (editingColumnTitle.trim()) {
+      setColumns(columns.map(c => c.id === id ? { ...c, title: editingColumnTitle.trim() } : c));
+    }
+    setEditingColumnId(null);
+  };
+
+  const handleDeleteColumn = (id: string) => {
+    setColumns(columns.filter(c => c.id !== id));
+  };
+
+  useEffect(() => {
+    localStorage.setItem(`board-columns-${projectId || 'all'}`, JSON.stringify(columns));
+  }, [columns, projectId]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isWorkloadModalOpen, setIsWorkloadModalOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -433,10 +475,9 @@ export default function Board() {
               onChange={(e) => setFilterStatus(e.target.value)}
             >
               <option value="all" className="bg-surface">ALL STATUSES</option>
-              <option value="todo" className="bg-surface">TO DO</option>
-              <option value="in_progress" className="bg-surface">IN PROGRESS</option>
-              <option value="review" className="bg-surface">REVIEW</option>
-              <option value="done" className="bg-surface">DONE</option>
+              {columns.map(c => (
+                <option key={c.id} value={c.id} className="bg-surface">{c.title}</option>
+              ))}
             </select>
           </div>
           <div className="flex items-center space-x-2 bg-surface border border-border-subtle rounded px-3 py-1.5 text-[10px]">
@@ -472,7 +513,7 @@ export default function Board() {
 
       {viewMode === 'board' ? (
         <div className="flex-1 flex space-x-6 overflow-x-auto overflow-y-hidden pb-4">
-          {COLUMNS.map(column => {
+          {columns.map(column => {
             const parentTasks = filteredTasks.filter(t => !t.parentId);
             const columnTasks = parentTasks.filter(t => t.status === column.id);
           return (
@@ -497,19 +538,48 @@ export default function Board() {
               }}
             >
               <div className="px-4 py-3 flex justify-between items-center border-b border-border-subtle group">
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-xs font-bold text-strong uppercase tracking-widest">{column.title}</h3>
+                <div className="flex items-center space-x-2 flex-1">
+                  {editingColumnId === column.id ? (
+                    <input
+                      type="text"
+                      className="text-xs font-bold text-strong uppercase tracking-widest bg-transparent border-b border-blue-500 outline-none w-full"
+                      value={editingColumnTitle}
+                      onChange={(e) => setEditingColumnTitle(e.target.value)}
+                      onBlur={() => handleUpdateColumnTitle(column.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleUpdateColumnTitle(column.id);
+                        if (e.key === 'Escape') setEditingColumnId(null);
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <h3 className="text-xs font-bold text-strong uppercase tracking-widest cursor-pointer" onDoubleClick={() => {
+                      setEditingColumnId(column.id);
+                      setEditingColumnTitle(column.title);
+                    }}>
+                      {column.title}
+                    </h3>
+                  )}
                   <span className="bg-surface-accent text-strong px-2 py-0.5 rounded text-[10px] font-medium">
                     {columnTasks.length}
                   </span>
                 </div>
-                <button
-                  onClick={() => handleCreateTaskInColumn(column.id)}
-                  className="text-subtle hover:text-strong opacity-0 group-hover:opacity-100 transition-opacity"
-                  title={`Add Task to ${column.title}`}
-                >
-                  <Plus size={16} />
-                </button>
+                <div className="flex flex-row items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleCreateTaskInColumn(column.id)}
+                    className="text-subtle hover:text-strong"
+                    title={`Add Task to ${column.title}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteColumn(column.id)}
+                    className="text-subtle hover:text-red-400"
+                    title={`Delete ${column.title}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -761,11 +831,22 @@ export default function Board() {
             </div>
           );
         })}
+        <div className="w-80 flex-shrink-0 flex items-center justify-center border border-dashed border-border-subtle hover:border-blue-500/50 rounded-lg bg-surface-dim hover:bg-surface-accent transition-colors cursor-pointer" onClick={handleAddColumn}>
+          <div className="flex items-center space-x-2 text-subtle hover:text-strong">
+            <Plus size={16} />
+            <span className="text-xs font-bold uppercase tracking-widest">New Column</span>
+          </div>
+        </div>
         </div>
       ) : (
         <div className="flex-1 border border-border-subtle rounded overflow-hidden">
           <TaskDiagram 
              tasks={filteredTasks} 
+             layoutKey={`${sortBy}-${sortDir}-${searchQuery}-${filterAssignee}-${filterPriority}-${filterStatus}`}
+             onTaskDoubleClick={(taskId) => {
+               const task = tasks.find(t => t.id === taskId);
+               if (task) setEditingTask(task);
+             }}
              onConnectTask={(sourceId, targetId) => {
                const targetTask = tasks.find(t => t.id === targetId);
                if (targetTask) {
@@ -799,6 +880,7 @@ export default function Board() {
           task={editingTask}
           users={users}
           tasks={tasks}
+          columns={columns}
           parentId={selectedParentId}
           projectId={projectId}
           onClose={() => setIsModalOpen(false)}
