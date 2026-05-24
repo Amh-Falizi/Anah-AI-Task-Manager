@@ -14,7 +14,7 @@ import {
   subMonths,
   parseISO
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, CheckCircle2, Plus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import TaskModal from '../components/TaskModal';
 
@@ -25,6 +25,8 @@ export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDateForNewTask, setSelectedDateForNewTask] = useState<Date | null>(null);
 
   const fetchData = async () => {
     try {
@@ -64,10 +66,13 @@ export default function CalendarView() {
   };
 
   const handleSaveTask = async (taskData: Partial<Task>) => {
-    if (!selectedTask) return;
+    const isEdit = !!selectedTask;
+    const url = isEdit ? `/api/tasks/${selectedTask!.id}` : '/api/tasks';
+    const method = isEdit ? 'PUT' : 'POST';
+
     try {
-      const res = await fetch(`/api/tasks/${selectedTask.id}`, {
-        method: 'PUT',
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -75,11 +80,17 @@ export default function CalendarView() {
         body: JSON.stringify(taskData)
       });
       if (res.ok) {
+        setIsModalOpen(false);
         setSelectedTask(null);
+        setSelectedDateForNewTask(null);
         fetchData();
+      } else {
+        const errData = await res.text();
+        alert(`Failed to save task: ${errData}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(`Error saving task: ${err.message}`);
     }
   };
 
@@ -133,6 +144,13 @@ export default function CalendarView() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+  };
+
+  const handleCreateTask = (e: React.MouseEvent, date: Date) => {
+    e.stopPropagation();
+    setSelectedDateForNewTask(date);
+    setSelectedTask(null);
+    setIsModalOpen(true);
   };
 
   if (loading) return <div className="p-8">Loading calendar...</div>;
@@ -196,13 +214,17 @@ export default function CalendarView() {
             const isToday = isSameDay(day, new Date());
             
             // Get root tasks to display them by deadline
-            const dayTasks = tasks.filter(t => !t.parentId && isSameDay(parseISO(t.deadline), day));
+            const dayTasks = tasks.filter(t => {
+              if (t.parentId || !t.deadline) return false;
+              const date = parseISO(t.deadline);
+              return !isNaN(date.getTime()) && isSameDay(date, day);
+            });
 
             return (
               <div 
                 key={day.toISOString()}
                 className={cn(
-                  "border-border-subtle py-2 px-2 flex flex-col gap-2 transition-colors",
+                  "border-border-subtle py-2 px-2 flex flex-col gap-2 transition-colors group",
                   idx > 6 && "border-t",
                   idx % 7 !== 6 && "border-r",
                   !isCurrentMonth ? "bg-surface-dim/50" : "bg-surface",
@@ -212,15 +234,24 @@ export default function CalendarView() {
                 onDrop={(e) => handleDrop(e, day)}
               >
                 <div className="flex items-center justify-between px-1">
-                   <div className={cn(
-                     "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-                     isToday 
-                       ? "bg-blue-600 text-strong" 
-                       : isCurrentMonth 
-                         ? "text-primary" 
-                         : "text-subtle opacity-50"
-                   )}>
-                     {format(day, 'd')}
+                   <div className="flex items-center gap-1.5">
+                     <div className={cn(
+                       "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                       isToday 
+                         ? "bg-blue-600 text-strong" 
+                         : isCurrentMonth 
+                           ? "text-primary" 
+                           : "text-subtle opacity-50"
+                     )}>
+                       {format(day, 'd')}
+                     </div>
+                     <button
+                       onClick={(e) => handleCreateTask(e, day)}
+                       className="p-1 text-muted hover:text-strong hover:bg-surface-accent/50 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                       title="Add Task"
+                     >
+                       <Plus size={12} />
+                     </button>
                    </div>
                    {dayTasks.length > 0 && (
                      <div className="text-[10px] text-subtle font-medium">
@@ -237,14 +268,18 @@ export default function CalendarView() {
                           key={task.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, task.id)}
-                          onClick={() => setSelectedTask(task)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTask(task);
+                            setIsModalOpen(true);
+                          }}
                           className={cn(
-                            "text-xs px-2 py-1.5 rounded cursor-pointer truncate transition-colors border-l-[3px]",
-                            isDone ? "bg-surface-dim text-subtle border-l-border-strong opacity-60" : "bg-surface-accent text-strong hover:bg-surface-dim",
-                            !isDone && task.priority === 'urgent' && "border-l-red-500",
-                            !isDone && task.priority === 'high' && "border-l-amber-500",
-                            !isDone && task.priority === 'medium' && "border-l-blue-500",
-                            !isDone && task.priority === 'low' && "border-l-slate-400"
+                            "text-xs px-2 py-1.5 rounded cursor-pointer truncate transition-all border",
+                            isDone ? "bg-surface-dim text-subtle border-border-strong opacity-60" : "bg-surface hover:bg-surface-dim text-strong shadow-[0_1px_2px_rgba(0,0,0,0.05)]",
+                            !isDone && task.priority === 'urgent' ? "border-red-500/40 hover:border-red-500/60" :
+                            !isDone && task.priority === 'high' ? "border-amber-500/40 hover:border-amber-500/60" :
+                            !isDone && task.priority === 'medium' ? "border-blue-500/40 hover:border-blue-500/60" :
+                            !isDone ? "border-border-subtle hover:border-blue-500/50" : ""
                           )}
                           title={task.title}
                         >
@@ -266,12 +301,21 @@ export default function CalendarView() {
         </div>
       </div>
 
-      {selectedTask && (
+      {isModalOpen && (
         <TaskModal
           task={selectedTask}
           users={users}
           tasks={tasks}
-          onClose={() => setSelectedTask(null)}
+          initialDeadline={selectedDateForNewTask ? (() => { 
+            const d = new Date(selectedDateForNewTask); 
+            d.setHours(12,0,0,0); 
+            return d.toISOString(); 
+          })() : undefined}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedTask(null);
+            setSelectedDateForNewTask(null);
+          }}
           onSave={handleSaveTask}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}

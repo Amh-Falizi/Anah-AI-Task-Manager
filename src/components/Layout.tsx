@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { LayoutDashboard, KanbanSquare, LogOut, Users, Calendar, FolderKanban, Sun, Moon, Shield, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, KanbanSquare, LogOut, Users, Calendar, FolderKanban, Sun, Moon, Shield, ChevronLeft, ChevronRight, Workflow } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 import NotificationsDropdown from './NotificationsDropdown';
@@ -19,6 +19,7 @@ export default function Layout() {
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Projects', href: '/projects', icon: FolderKanban },
     { name: 'Task Board', href: '/board', icon: KanbanSquare },
+    { name: 'Task Graph', href: '/graph', icon: Workflow },
     { name: 'Calendar', href: '/calendar', icon: Calendar },
     { name: 'Teams', href: '/teams', icon: Users },
   ];

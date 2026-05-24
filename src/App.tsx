@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Board from './pages/Board';
+import Graph from './pages/Graph';
 import Teams from './pages/Teams';
 import Projects from './pages/Projects';
 import Profile from './pages/Profile';
@@ -44,6 +45,7 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="projects" element={<Projects />} />
               <Route path="board" element={<Board />} />
+              <Route path="graph" element={<Graph />} />
               <Route path="calendar" element={<CalendarView />} />
               <Route path="teams" element={<Teams />} />
               <Route path="profile" element={<Profile />} />

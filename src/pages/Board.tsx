@@ -7,7 +7,7 @@ import ProjectActivityModal from '../components/ProjectActivityModal';
 import { Plus, MoreVertical, Calendar, ArrowUpDown, CornerDownRight, Search, Filter, AlertCircle, ChevronUp, Minus, ChevronDown, X, FolderKanban, Activity, CheckCircle2, Workflow, Clock, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { useSearchParams, Link } from 'react-router';
+import { useSearchParams, Link, Navigate } from 'react-router';
 import TaskDiagram from '../components/TaskDiagram';
 import Markdown from 'react-markdown';
 import UserAvatar from '../components/UserAvatar';
@@ -17,7 +17,7 @@ export interface Column {
   title: string;
 }
 
-const DEFAULT_COLUMNS: Column[] = [
+export const DEFAULT_COLUMNS: Column[] = [
   { id: 'todo', title: 'To Do' },
   { id: 'in_progress', title: 'In Progress' },
   { id: 'review', title: 'Review' },
@@ -43,6 +43,8 @@ export default function Board() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [project, setProject] = useState<Project | null>(null);
+  
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   
   const [columns, setColumns] = useState<Column[]>(() => {
     try {
@@ -88,7 +90,6 @@ export default function Board() {
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>('board');
   const [sortBy, setSortBy] = useState<SortOption>('custom');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,25 +101,23 @@ export default function Board() {
 
   const fetchData = async () => {
     try {
-      const fetches = [
+      const results = await Promise.all([
         fetch('/api/tasks', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
-      ];
+        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
       
-      if (projectId) {
-        fetches.push(fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } }));
-      }
-      
-      const results = await Promise.all(fetches);
       const tasksData: Task[] = await results[0].json();
       const usersData = await results[1].json();
+      const projectsData: Project[] = await results[2].json();
+      
+      setAllProjects(projectsData);
       
       if (projectId) {
-        const projectsData: Project[] = await results[2].json();
-        const found = projectsData.find(p => p.id === projectId);
+        const found = projectsData.find((p: Project) => p.id === projectId);
         setProject(found || null);
         // Filter tasks by this project
-        setTasks(tasksData.filter(t => t.projectId === projectId));
+        setTasks(tasksData.filter((t: Task) => t.projectId === projectId));
       } else {
         setProject(null);
         setTasks(tasksData);
@@ -301,17 +300,26 @@ export default function Board() {
     const url = isEdit ? `/api/tasks/${editingTask!.id}` : '/api/tasks';
     const method = isEdit ? 'PUT' : 'POST';
 
-    await fetch(url, {
-      method,
-      headers: { 
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
-      },
-      body: JSON.stringify(taskData)
-    });
-
-    setIsModalOpen(false);
-    fetchData();
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify(taskData)
+      });
+      if (res.ok) {
+        setIsModalOpen(false);
+        fetchData();
+      } else {
+        const errData = await res.text();
+        alert(`Failed to save task: ${errData}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(`Error saving task: ${err.message}`);
+    }
   };
 
   const handleUpdateTask = async (taskId: string, currentTask: Task, updates: Partial<Task>) => {
@@ -372,7 +380,53 @@ export default function Board() {
     fetchData();
   };
 
+  if (!projectId) {
+    return <Navigate to="/projects" replace />;
+  }
+
   if (loading) return <div className="p-8 text-primary">Loading board...</div>;
+
+  if (!projectId) {
+    return (
+      <div className="flex-1 flex flex-col p-8 bg-page-bg overflow-y-auto">
+        <h1 className="text-xl font-semibold text-strong tracking-tight opacity-90 mb-2">Select a Project</h1>
+        <p className="text-sm text-subtle mb-8">Choose a project to view its task board</p>
+        
+        {allProjects.length === 0 ? (
+          <div className="text-center p-12 bg-surface border border-border-subtle rounded-lg">
+            <h2 className="text-lg font-medium text-strong mb-2">No projects found</h2>
+            <p className="text-sm text-subtle mb-4">You need to create a project first before managing tasks.</p>
+            <Link to="/projects" className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-strong text-sm font-medium rounded transition-colors">
+              Go to Projects
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {allProjects.map(p => (
+              <Link 
+                key={p.id} 
+                to={`/board?projectId=${p.id}`}
+                className="block p-6 bg-surface border border-border-subtle hover:border-blue-500/50 rounded-lg transition-all hover:shadow-lg group"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2 bg-blue-500/10 text-blue-500 rounded group-hover:scale-110 transition-transform">
+                    <FolderKanban size={24} />
+                  </div>
+                  <span className="text-xs font-mono text-muted bg-surface-accent px-2 py-1 rounded">
+                    {p.projectKey || 'PRJ'}
+                  </span>
+                </div>
+                <h3 className="text-lg font-medium text-strong mb-2 group-hover:text-blue-400 transition-colors">{p.name}</h3>
+                <p className="text-sm text-subtle line-clamp-2">
+                  {p.description ? p.description : 'No description'}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col p-6 min-h-0 bg-page-bg">
@@ -400,23 +454,6 @@ export default function Board() {
           )}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center bg-surface border border-border-subtle rounded overflow-hidden">
-            <button
-               onClick={() => setViewMode('board')}
-               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'board' ? "bg-blue-500/20 text-blue-400" : "text-subtle hover:text-strong")}
-            >
-               <FolderKanban size={14} />
-               <span>Board</span>
-            </button>
-            <div className="w-px h-4 bg-surface-accent" />
-            <button
-               onClick={() => setViewMode('diagram')}
-               className={cn("px-3 py-1.5 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider transition-colors", viewMode === 'diagram' ? "bg-blue-500/20 text-blue-400" : "text-subtle hover:text-strong")}
-            >
-               <Workflow size={14} />
-               <span>Graph</span>
-            </button>
-          </div>
           {project && (
             <>
               <button
@@ -511,8 +548,7 @@ export default function Board() {
         </div>
       </div>
 
-      {viewMode === 'board' ? (
-        <div className="flex-1 flex space-x-6 overflow-x-auto overflow-y-hidden pb-4">
+      <div className="flex-1 flex space-x-6 overflow-x-auto overflow-y-hidden pb-4">
           {columns.map(column => {
             const parentTasks = filteredTasks.filter(t => !t.parentId);
             const columnTasks = parentTasks.filter(t => t.status === column.id);
@@ -632,12 +668,12 @@ export default function Board() {
                       }}
                       onClick={() => handleEditTask(task)}
                       className={cn(
-                        "p-3 bg-surface-dim border border-border-subtle border-l-[3px] rounded cursor-pointer hover:border-r-blue-500 hover:border-y-blue-500 hover:border-b-blue-500 hover:border-t-blue-500 transition-colors group flex flex-col",
+                        "p-3 bg-surface-dim border rounded cursor-pointer hover:border-blue-500 transition-colors group flex flex-col",
                         draggingTaskId === task.id && "opacity-40",
-                        task.priority === 'urgent' ? 'border-l-red-500' :
-                        task.priority === 'high' ? 'border-l-amber-500' :
-                        task.priority === 'medium' ? 'border-l-blue-500' :
-                        'border-l-slate-600'
+                        task.priority === 'urgent' ? 'border-red-500/40' :
+                        task.priority === 'high' ? 'border-amber-500/40' :
+                        task.priority === 'medium' ? 'border-blue-500/40' :
+                        'border-border-subtle'
                       )}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -816,7 +852,11 @@ export default function Board() {
                       <div className="mt-auto pt-2 flex items-center justify-between text-[10px] text-muted border-t border-border-subtle">
                         <div className="flex items-center space-x-1 font-mono">
                           <Calendar size={12} />
-                          <span>{format(new Date(task.deadline), 'MMM dd').toUpperCase()}</span>
+                          <span>
+                            {task.deadline && !isNaN(new Date(task.deadline).getTime())
+                              ? format(new Date(task.deadline), 'MMM dd').toUpperCase()
+                              : 'NO DEADLINE'}
+                          </span>
                         </div>
                         {assignee && (
                           <div className="flex items-center space-x-2" title={assignee.name}>
@@ -837,43 +877,7 @@ export default function Board() {
             <span className="text-xs font-bold uppercase tracking-widest">New Column</span>
           </div>
         </div>
-        </div>
-      ) : (
-        <div className="flex-1 border border-border-subtle rounded overflow-hidden">
-          <TaskDiagram 
-             tasks={filteredTasks} 
-             layoutKey={`${sortBy}-${sortDir}-${searchQuery}-${filterAssignee}-${filterPriority}-${filterStatus}`}
-             onTaskDoubleClick={(taskId) => {
-               const task = tasks.find(t => t.id === taskId);
-               if (task) setEditingTask(task);
-             }}
-             onConnectTask={(sourceId, targetId) => {
-               const targetTask = tasks.find(t => t.id === targetId);
-               if (targetTask) {
-                 const deps = targetTask.dependencies || [];
-                 if (!deps.includes(sourceId) && sourceId !== targetId) {
-                   handleUpdateTask(targetId, targetTask, { dependencies: [...deps, sourceId] });
-                 }
-               }
-             }}
-             onReverseConnection={(sourceId, targetId) => {
-               const targetTask = tasks.find(t => t.id === targetId);
-               const sourceTask = tasks.find(t => t.id === sourceId);
-               
-               if (targetTask && sourceTask) {
-                 const targetDeps = targetTask.dependencies || [];
-                 const newTargetDeps = targetDeps.filter(id => id !== sourceId);
-                 
-                 const sourceDeps = sourceTask.dependencies || [];
-                 const newSourceDeps = Array.from(new Set([...sourceDeps, targetId]));
-                 
-                 handleUpdateTask(targetId, targetTask, { dependencies: newTargetDeps });
-                 handleUpdateTask(sourceId, sourceTask, { dependencies: newSourceDeps });
-               }
-             }}
-          />
-        </div>
-      )}
+      </div>
 
       {isModalOpen && (
         <TaskModal

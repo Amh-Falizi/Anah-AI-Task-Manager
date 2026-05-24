@@ -52,9 +52,13 @@ export default function Dashboard() {
       if (res.ok) {
         setSelectedTask(null);
         fetchData();
+      } else {
+        const errData = await res.text();
+        alert(`Failed to save task: ${errData}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert(`Error saving task: ${err.message}`);
     }
   };
 
@@ -211,14 +215,20 @@ export default function Dashboard() {
             <div className="px-4 py-3 border-b border-border-subtle flex items-center justify-between">
               <h2 className="text-xs font-bold text-strong uppercase tracking-widest">My Assigned Tasks</h2>
             </div>
-            <div className="overflow-y-auto divide-y divide-border-subtle">
+            <div className="overflow-y-auto p-4 space-y-3">
               {myTasks.length === 0 ? (
-                <div className="p-6 text-center text-subtle text-sm">No tasks assigned to you.</div>
+                <div className="p-6 text-center text-subtle text-sm border border-dashed border-border-subtle rounded-lg">No tasks assigned to you.</div>
               ) : (
                 myTasks.map(task => (
                   <div 
                     key={task.id} 
-                    className="p-3 hover:bg-surface-dim cursor-pointer group flex flex-col gap-2 transition-colors"
+                    className={cn(
+                      "p-3 bg-surface hover:bg-surface-dim border rounded-lg cursor-pointer group flex flex-col gap-2 transition-all shadow-sm hover:shadow-md",
+                      task.priority === 'urgent' ? 'border-red-500/40 hover:border-red-500/60' :
+                      task.priority === 'high' ? 'border-amber-500/40 hover:border-amber-500/60' :
+                      task.priority === 'medium' ? 'border-blue-500/40 hover:border-blue-500/60' :
+                      'border-border-subtle hover:border-blue-500/50'
+                    )}
                     onClick={() => setSelectedTask(task)}
                   >
                     <div className="flex items-start justify-between">
@@ -238,7 +248,11 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-mono text-muted">{format(new Date(task.deadline), 'MMM dd').toUpperCase()}</div>
+                        <div className="text-[10px] font-mono text-muted">
+                          {task.deadline && !isNaN(new Date(task.deadline).getTime()) 
+                            ? format(new Date(task.deadline), 'MMM dd').toUpperCase() 
+                            : 'NO DEADLINE'}
+                        </div>
                         <div className="text-[9px] bg-surface-accent text-muted px-1.5 py-0.5 rounded mt-1 uppercase">
                           {task.status.replace('_', ' ')}
                         </div>

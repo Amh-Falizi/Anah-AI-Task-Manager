@@ -245,8 +245,16 @@ function FlowLogic({ tasks, layoutKey, onConnectTask, onReverseConnection, onTas
         <MiniMap 
           zoomable 
           pannable 
-          nodeColor="var(--app-surface-accent)" 
-          maskColor="var(--app-bg)" 
+          nodeColor={(n: any) => n.data.borderColor} 
+          maskColor="rgba(0, 0, 0, 0.4)" 
+          style={{
+            backgroundColor: 'var(--app-surface)',
+            border: '1px solid var(--app-border-strong)',
+            borderRadius: '8px',
+            width: 250,
+            height: 180,
+            overflow: 'hidden'
+          }}
         />
       </ReactFlow>
     </div>

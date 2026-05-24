@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Task, User, Project } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { X, GitBranch, Loader2, Edit2, Calendar, Clock, CheckCircle2, Trash, Plus } from 'lucide-react';
+import { X, GitBranch, Loader2, Edit2, Calendar, Clock, CheckCircle2, Trash, Plus, FolderKanban } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
@@ -20,9 +20,10 @@ interface TaskModalProps {
   parentId?: string | null;
   projectId?: string | null;
   initialStatus?: string;
+  initialDeadline?: string;
 }
 
-export default function TaskModal({ task, users, tasks = [], columns, onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId, initialStatus }: TaskModalProps) {
+export default function TaskModal({ task, users, tasks = [], columns, onClose, onSave, onUpdateTask, onDeleteTask, onCreateSubtask, parentId, projectId, initialStatus, initialDeadline }: TaskModalProps) {
   const { token, user } = useAuth();
   const isEdit = !!task;
   const [isViewMode, setIsViewMode] = useState(isEdit);
@@ -32,9 +33,9 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
   const [formData, setFormData] = useState<Partial<Task>>({
     title: task?.title || '',
     description: task?.description || '',
-    status: task?.status || initialStatus || 'todo',
+    status: task?.status || (initialStatus as any) || 'todo',
     priority: task?.priority || 'medium',
-    deadline: task?.deadline ? task.deadline.split('T')[0] : new Date().toISOString().split('T')[0],
+    deadline: task?.deadline ? task.deadline.split('T')[0] : (initialDeadline ? initialDeadline.split('T')[0] : new Date().toISOString().split('T')[0]),
     assigneeId: task?.assigneeId || '',
     branchName: task?.branchName || '',
     parentId: task?.parentId || parentId || null,
@@ -144,6 +145,14 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.title?.trim()) {
+      alert("Please enter a Task Title.");
+      return;
+    }
+    if (!formData.projectId) {
+      alert("Please select a Project. This is a mandatory field.");
+      return;
+    }
     if (formData.status === 'done') {
        const pendingDeps = (formData.dependencies || []).filter(depId => {
          const dep = tasks.find(t => t.id === depId);
@@ -608,7 +617,7 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
                     <label className="text-[9px] font-bold text-subtle uppercase tracking-widest block mb-1">Deadline</label>
                     <div className="flex items-center space-x-2 text-sm text-strong bg-surface-dim p-2 rounded border border-border-subtle">
                       <Calendar size={14} className="text-muted" />
-                      <span>{format(new Date(task.deadline), 'PP')}</span>
+                      <span>{task.deadline && !isNaN(new Date(task.deadline).getTime()) ? format(new Date(task.deadline), 'PP') : 'No Deadline'}</span>
                     </div>
                   </div>
                   <div>

@@ -34,68 +34,82 @@ export default function NotificationsDropdown({ expanded }: { expanded?: boolean
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchTasks = async () => {
-    if (!token || !user) return;
-    try {
-      const res = await fetch('/api/tasks', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) return;
-      const allTasks: Task[] = await res.json();
-      
-      // Filter tasks assigned to current user, not done, and deadline is approaching or passed
-      const userTasks = allTasks.filter(t => t.assigneeId === user.id && t.status !== 'done');
-      
-      const newNotifications: Notification[] = [];
-      const readStateStr = localStorage.getItem(`notifications_${user.id}`);
-      const readState = readStateStr ? JSON.parse(readStateStr) : {};
-
-      userTasks.forEach(task => {
-        const deadline = parseISO(task.deadline);
-        const hoursLeft = differenceInHours(deadline, new Date());
-        
-        let type: 'approaching' | 'overdue' | null = null;
-        let message = '';
-        
-        if (isPast(deadline)) {
-          type = 'overdue';
-          message = `Overdue by ${formatDistanceToNow(deadline)}`;
-        } else if (hoursLeft <= 24) {
-          type = 'approaching';
-          message = `Due in ${hoursLeft} hours`;
-        }
-
-        if (type) {
-          const notifId = `${task.id}_${type}`; // Unique ID per state
-          newNotifications.push({
-            id: notifId,
-            taskId: task.id,
-            title: task.title,
-            message,
-            type,
-            isRead: readState[notifId] || false,
-            timestamp: task.deadline
-          });
-        }
-      });
-      
-      // Sort: overdue first, then approaching. If same, closest deadline first.
-      newNotifications.sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'overdue' ? -1 : 1;
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      });
-      
-      setNotifications(newNotifications);
-      setUnreadCount(newNotifications.filter(n => !n.isRead).length);
-    } catch (err) {
-      console.error('Failed to fetch tasks for notifications', err);
-    }
-  };
-
   useEffect(() => {
+    const abortController = new AbortController();
+
+    const fetchTasks = async () => {
+      if (!token || !user) return;
+      try {
+        const res = await fetch('/api/tasks', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: abortController.signal
+        });
+        if (!res.ok) return;
+        const allTasks: Task[] = await res.json();
+        
+        // Filter tasks assigned to current user, not done, and deadline is approaching or passed
+        const userTasks = allTasks.filter(t => t.assigneeId === user.id && t.status !== 'done');
+        
+        const newNotifications: Notification[] = [];
+        const readStateStr = localStorage.getItem(`notifications_${user.id}`);
+        const readState = readStateStr ? JSON.parse(readStateStr) : {};
+
+        userTasks.forEach(task => {
+          if (!task.deadline) return;
+          const deadline = parseISO(task.deadline);
+          if (isNaN(deadline.getTime())) return;
+          const hoursLeft = differenceInHours(deadline, new Date());
+          
+          let type: 'approaching' | 'overdue' | null = null;
+          let message = '';
+          
+          if (isPast(deadline)) {
+            type = 'overdue';
+            message = `Overdue by ${formatDistanceToNow(deadline)}`;
+          } else if (hoursLeft <= 24) {
+            type = 'approaching';
+            message = `Due in ${hoursLeft} hours`;
+          }
+
+          if (type) {
+            const notifId = `${task.id}_${type}`; // Unique ID per state
+            newNotifications.push({
+              id: notifId,
+              taskId: task.id,
+              title: task.title,
+              message,
+              type,
+              isRead: readState[notifId] || false,
+              timestamp: task.deadline
+            });
+          }
+        });
+        
+        // Sort: overdue first, then approaching. If same, closest deadline first.
+        newNotifications.sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'overdue' ? -1 : 1;
+          return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+        });
+        
+        setNotifications(newNotifications);
+        setUnreadCount(newNotifications.filter(n => !n.isRead).length);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        if (err.message === 'Failed to fetch') {
+          // Dev server might be down or restarting, avoid spamming the console 
+          return;
+        }
+        console.error('Failed to fetch tasks for notifications', err);
+      }
+    };
+
     fetchTasks();
     const interval = setInterval(fetchTasks, 60000); // Check every minute
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      abortController.abort();
+    };
   }, [token, user]);
 
   const markAsRead = (notifId: string, e: React.MouseEvent) => {
