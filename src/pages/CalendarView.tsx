@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, Navigate, Link } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
-import { Task, User } from '../types';
+import { Task, User, Project } from '../types';
 import { 
   format, 
   startOfWeek, 
@@ -14,14 +15,20 @@ import {
   subMonths,
   parseISO
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, CheckCircle2, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, CheckCircle2, Plus, FolderKanban } from 'lucide-react';
 import { cn } from '../lib/utils';
 import TaskModal from '../components/TaskModal';
 
 export default function CalendarView() {
   const { token } = useAuth();
+  const [searchParams] = useSearchParams();
+  const projectId = searchParams.get('projectId');
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,14 +37,25 @@ export default function CalendarView() {
 
   const fetchData = async () => {
     try {
-      const [tasksRes, usersRes] = await Promise.all([
+      const [tasksRes, usersRes, projectsRes] = await Promise.all([
         fetch('/api/tasks', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/users', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
       ]);
       const tasksData = await tasksRes.json();
       const usersData = await usersRes.json();
-      setTasks(tasksData);
+      const projectsData = await projectsRes.json();
+      
       setUsers(usersData);
+      setAllProjects(projectsData);
+      
+      if (projectId) {
+        setProject(projectsData.find((p: Project) => p.id === projectId) || null);
+        setTasks(tasksData.filter((t: Task) => t.projectId === projectId));
+      } else {
+        setProject(null);
+        setTasks(tasksData);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -47,7 +65,7 @@ export default function CalendarView() {
 
   useEffect(() => {
     fetchData();
-  }, [token]);
+  }, [token, projectId]);
 
   const handleUpdateTask = async (taskId: string, currentTask: Task, updates: Partial<Task>) => {
     try {
@@ -154,6 +172,52 @@ export default function CalendarView() {
   };
 
   if (loading) return <div className="p-8">Loading calendar...</div>;
+
+  if (!projectId) {
+    if (allProjects.length === 1) {
+      return <Navigate to={`/calendar?projectId=${allProjects[0].id}`} replace />;
+    }
+    
+    return (
+      <div className="flex-1 flex flex-col p-8 bg-page-bg overflow-y-auto">
+        <h1 className="text-xl font-semibold text-strong tracking-tight opacity-90 mb-2">Select a Project</h1>
+        <p className="text-sm text-subtle mb-8">Choose a project to view its calendar</p>
+        
+        {allProjects.length === 0 ? (
+          <div className="text-center p-12 bg-surface border border-border-subtle rounded-lg">
+            <h2 className="text-lg font-medium text-strong mb-2">No projects found</h2>
+            <p className="text-sm text-subtle mb-4">You need to create a project first before managing tasks.</p>
+            <Link to="/projects" className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-strong text-sm font-medium rounded transition-colors">
+              Go to Projects
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {allProjects.map(p => (
+              <Link 
+                key={p.id} 
+                to={`/calendar?projectId=${p.id}`}
+                className="block p-6 bg-surface border border-border-subtle hover:border-blue-500/50 rounded-lg transition-all hover:shadow-lg group"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2 bg-blue-500/10 text-blue-500 rounded group-hover:scale-110 transition-transform">
+                    <FolderKanban size={24} />
+                  </div>
+                  <span className="text-xs font-mono text-muted bg-surface-accent px-2 py-1 rounded">
+                    {p.projectKey || 'PRJ'}
+                  </span>
+                </div>
+                <h3 className="text-lg font-medium text-strong mb-2 group-hover:text-blue-400 transition-colors">{p.name}</h3>
+                <p className="text-sm text-subtle line-clamp-2">
+                  {p.description ? p.description : 'No description'}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col p-6 min-h-0 bg-page-bg">
@@ -306,6 +370,7 @@ export default function CalendarView() {
           task={selectedTask}
           users={users}
           tasks={tasks}
+          projectId={projectId}
           initialDeadline={selectedDateForNewTask ? (() => { 
             const d = new Date(selectedDateForNewTask); 
             d.setHours(12,0,0,0); 

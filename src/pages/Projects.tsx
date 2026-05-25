@@ -233,6 +233,7 @@ export default function Projects() {
 function CreateProjectModal({ project, onClose, onSuccess }: { project?: Project | null, onClose: () => void, onSuccess: () => void }) {
   const { token } = useAuth();
   const [name, setName] = useState(project?.name || '');
+  const [projectKey, setProjectKey] = useState(project?.projectKey || '');
   const [description, setDescription] = useState(project?.description || '');
   const [previewMode, setPreviewMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -249,7 +250,7 @@ function CreateProjectModal({ project, onClose, onSuccess }: { project?: Project
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ name, description })
+        body: JSON.stringify({ name, description, projectKey })
       });
       if (res.ok) {
         onSuccess();
@@ -283,6 +284,47 @@ function CreateProjectModal({ project, onClose, onSuccess }: { project?: Project
                 required
                 placeholder="e.g. Frontend Redesign"
                 className="w-full bg-surface-dim border border-border-subtle rounded px-3 py-2 text-strong focus:outline-none focus:border-blue-500 text-sm"
+              />
+            </div>
+            
+            <div>
+              <label className="text-[10px] font-bold text-subtle uppercase tracking-widest block mb-1">Project Key (Prefix for branches/tasks)</label>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs text-muted">Leave empty to use manual branch names without a forced prefix.</p>
+                {!project && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      let generatedKey = (name || "PRJ")
+                        .split(/\s+/)
+                        .map((w: string) => w[0])
+                        .join('')
+                        .replace(/[^A-Za-z0-9]/g, '')
+                        .toUpperCase();
+                        
+                      if (generatedKey.length < 3) {
+                        generatedKey = (name || "PRJ").replace(/[^A-Za-z0-9]/g, '').substring(0, 3).toUpperCase();
+                        if (generatedKey.length < 3) {
+                           generatedKey = generatedKey.padEnd(3, 'X');
+                        }
+                      } else if (generatedKey.length > 3) {
+                        generatedKey = generatedKey.substring(0, 3);
+                      }
+                      setProjectKey(generatedKey);
+                    }}
+                    className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-1 rounded hover:bg-blue-500/20 flex items-center space-x-1 font-bold tracking-wider uppercase transition-colors shrink-0 ml-2"
+                  >
+                    Generate Prefix
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                value={projectKey}
+                onChange={(e) => setProjectKey(e.target.value)}
+                placeholder={project ? project.projectKey : "e.g. FRD (optional)"}
+                disabled={!!project}
+                className="w-full bg-surface-dim border border-border-subtle rounded px-3 py-2 text-strong focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed font-mono"
               />
             </div>
             

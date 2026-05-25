@@ -543,7 +543,7 @@ app.post("/api/tasks", authenticateToken, async (req: any, res: any) => {
   let branchName = req.body.branchName;
   if (!branchName && req.body.projectId) {
     const project = await db.get("SELECT projectKey, taskCounter FROM projects WHERE id = ?", req.body.projectId);
-    if (project) {
+    if (project && project.projectKey) {
         const nextCount = (project.taskCounter || 0) + 1;
         await db.run("UPDATE projects SET taskCounter = ? WHERE id = ?", [nextCount, req.body.projectId]);
         branchName = `${project.projectKey}-${nextCount}`;
@@ -736,7 +736,7 @@ app.post("/api/tasks/branch", authenticateToken, async (req: any, res: any) => {
     if (projectId) {
       const db = await dbPromise;
       const project = await db.get("SELECT projectKey, taskCounter FROM projects WHERE id = ?", projectId);
-      if (project) {
+      if (project && project.projectKey) {
         const nextCount = (project.taskCounter || 0) + 1;
         await db.run("UPDATE projects SET taskCounter = ? WHERE id = ?", [nextCount, projectId]);
         projectKey = `${project.projectKey}-${nextCount}`;
@@ -814,24 +814,10 @@ app.post("/api/projects", authenticateToken, async (req: any, res: any) => {
     return res.status(403).json({ error: "Only admins and managers can create projects." });
   }
 
-  const { name, description } = req.body;
+  const { name, description, projectKey: customProjectKey } = req.body;
   const projectId = uuidv4();
   
-  let projectKey = (name || "PRJ")
-    .split(/\s+/)
-    .map((w: string) => w[0])
-    .join('')
-    .replace(/[^A-Za-z0-9]/g, '')
-    .toUpperCase();
-    
-  if (projectKey.length < 3) {
-    projectKey = (name || "PRJ").replace(/[^A-Za-z0-9]/g, '').substring(0, 3).toUpperCase();
-    if (projectKey.length < 3) {
-       projectKey = projectKey.padEnd(3, 'X');
-    }
-  } else if (projectKey.length > 3) {
-    projectKey = projectKey.substring(0, 3);
-  }
+  let projectKey = customProjectKey ? customProjectKey.replace(/[^a-zA-Z0-9-]/g, '').toUpperCase() : null;
   
   await db.run(
     "INSERT INTO projects (id, name, description, ownerId, projectKey, taskCounter, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)",

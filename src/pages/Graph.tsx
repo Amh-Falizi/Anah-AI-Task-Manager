@@ -180,7 +180,13 @@ export default function Graph() {
     fetchData();
   };
 
+  if (loading) return <div className="p-8 text-primary">Loading graph...</div>;
+
   if (!projectId) {
+    if (allProjects.length === 1) {
+      return <Navigate to={`/graph?projectId=${allProjects[0].id}`} replace />;
+    }
+
     return (
       <div className="flex-1 flex flex-col p-8 bg-page-bg overflow-y-auto">
         <h1 className="text-xl font-semibold text-strong tracking-tight opacity-90 mb-2">Select a Project</h1>
@@ -221,8 +227,6 @@ export default function Graph() {
       </div>
     );
   }
-
-  if (loading) return <div className="p-8 text-primary">Loading graph...</div>;
 
   return (
     <div className="flex-1 flex flex-col p-6 min-h-0 bg-page-bg">

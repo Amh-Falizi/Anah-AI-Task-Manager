@@ -48,7 +48,12 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
   useEffect(() => {
     fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
-      .then(data => setProjectsList(data))
+      .then(data => {
+        setProjectsList(data);
+        if (data.length === 1 && !formData.projectId) {
+          setFormData(prev => ({ ...prev, projectId: data[0].id }));
+        }
+      })
       .catch(err => console.error("Error fetching projects", err));
   }, [token]);
 
@@ -757,27 +762,30 @@ export default function TaskModal({ task, users, tasks = [], columns, onClose, o
              </div>
           </div>
 
-          <div className="space-y-1">
+           <div className="space-y-1">
              <div className="flex justify-between items-center mb-1">
                 <label className="text-[9px] font-bold text-subtle uppercase tracking-widest flex items-center space-x-2">
                   <GitBranch size={12} /> <span>Git Branch Name</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={handleGenerateBranch}
-                  disabled={generatingBranch}
-                  className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-1 rounded hover:bg-blue-500/20 disabled:opacity-50 flex items-center space-x-1 font-bold tracking-wider uppercase transition-colors"
-                >
-                  {generatingBranch ? <Loader2 size={10} className="animate-spin" /> : null}
-                  <span>Generate AI Branch</span>
-                </button>
+                {!(projectsList.find(p => p.id === formData.projectId)?.projectKey) && (
+                  <button
+                    type="button"
+                    onClick={handleGenerateBranch}
+                    disabled={generatingBranch}
+                    className="text-[9px] bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-1 rounded hover:bg-blue-500/20 disabled:opacity-50 flex items-center space-x-1 font-bold tracking-wider uppercase transition-colors"
+                  >
+                    {generatingBranch ? <Loader2 size={10} className="animate-spin" /> : null}
+                    <span>Generate AI Branch</span>
+                  </button>
+                )}
              </div>
              <input
               type="text"
-              placeholder="e.g., PROJ-123"
-              className="w-full rounded bg-surface-dim border border-border-subtle px-3 py-2 focus:border-blue-500 focus:outline-none font-mono text-xs text-blue-400 placeholder-slate-700"
+              placeholder={(projectsList.find(p => p.id === formData.projectId)?.projectKey) ? `Auto-generated when saved` : "e.g., PROJ-123"}
+              className="w-full rounded bg-surface-dim border border-border-subtle px-3 py-2 focus:border-blue-500 focus:outline-none font-mono text-xs text-blue-400 placeholder-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
               value={formData.branchName || ''}
               onChange={e => setFormData(p => ({ ...p, branchName: e.target.value }))}
+              disabled={!!(projectsList.find(p => p.id === formData.projectId)?.projectKey)}
             />
           </div>
 
